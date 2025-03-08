@@ -33,7 +33,7 @@ def main():
         sys.exit(1)
     
     # Check if input directory exists
-    input_dir = os.path.join(directory, "input")
+    input_dir = os.path.join(directory, "input", "screenshots")
     if not os.path.isdir(input_dir):
         logger.error(f"Input directory '{input_dir}' does not exist")
         sys.exit(1)
@@ -55,13 +55,20 @@ def main():
         config_handler = ConfigHandler(config_file)
         crop_settings = config_handler.get_crop_settings()
         logger.info(f"Loaded crop settings: {crop_settings}")
+        
+        # Load background settings if available
+        background_settings = config_handler.get_background_settings()
+        if background_settings:
+            logger.info(f"Loaded background settings: {background_settings}")
+        else:
+            logger.info("No background settings found, images will only be cropped")
     except Exception as e:
         logger.error(f"Failed to load configuration: {e}")
         sys.exit(1)
     
     # Process images
     try:
-        image_processor = ImageProcessor(input_dir, output_dir, crop_settings)
+        image_processor = ImageProcessor(input_dir, output_dir, crop_settings, background_settings)
         processed_count = image_processor.process_images()
         logger.info(f"Successfully processed {processed_count} images")
     except Exception as e:

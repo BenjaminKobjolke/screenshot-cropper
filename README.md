@@ -5,7 +5,8 @@ A Python application to crop screenshots based on JSON configuration.
 ## Features
 
 - Crop multiple PNG and JPG images at once
-- Configure crop settings via JSON
+- Place cropped images on a background image
+- Configure crop and background settings via JSON
 - Automatically create output directory
 - Detailed logging
 
@@ -39,7 +40,7 @@ A Python application to crop screenshots based on JSON configuration.
 
 1. Create a directory structure with:
 
-   - An `input` subdirectory containing the images to crop
+   - An `input/screenshots` subdirectory containing the images to crop
    - A `screenshot-cropper.json` configuration file
 
 2. Run the application:
@@ -56,19 +57,44 @@ Create a `screenshot-cropper.json` file with the following structure:
 
 ```json
 {
-  "top": 50,
-  "left": 0,
-  "right": 0,
-  "bottom": 0
+  "crop": {
+    "top": 280,
+    "left": 0,
+    "right": 0,
+    "bottom": 150
+  },
+  "background": {
+    "file": "bg.png",
+    "position": {
+      "x": 322,
+      "y": 878
+    },
+    "size": {
+      "width": 897,
+      "height": 1685
+    }
+  }
 }
 ```
 
-Where:
+### Crop Settings
 
 - `top`: Number of pixels to crop from the top
 - `left`: Number of pixels to crop from the left
 - `right`: Number of pixels to crop from the right
 - `bottom`: Number of pixels to crop from the bottom
+
+### Background Settings (Optional)
+
+- `file`: Filename of the background image (located in the input directory)
+- `position`: Position to place the cropped image on the background
+  - `x`: X-coordinate (horizontal position)
+  - `y`: Y-coordinate (vertical position)
+- `size`: Size to resize the cropped image before placing on background
+  - `width`: Width in pixels
+  - `height`: Height in pixels
+
+If background settings are not provided, images will only be cropped.
 
 ## Example
 
@@ -77,9 +103,11 @@ For a directory structure:
 ```
 my-screenshots/
 ├── input/
-│   ├── screenshot1.png
-│   ├── screenshot2.jpg
-│   └── screenshot3.png
+│   ├── bg.png                  # Background image
+│   └── screenshots/
+│       ├── screenshot1.png
+│       ├── screenshot2.jpg
+│       └── screenshot3.png
 └── screenshot-cropper.json
 ```
 
@@ -89,18 +117,20 @@ Run:
 python main.py --directory my-screenshots
 ```
 
-The cropped images will be saved in:
+The processed images will be saved in:
 
 ```
 my-screenshots/
 ├── input/
-│   ├── screenshot1.png
-│   ├── screenshot2.jpg
-│   └── screenshot3.png
+│   ├── bg.png
+│   └── screenshots/
+│       ├── screenshot1.png
+│       ├── screenshot2.jpg
+│       └── screenshot3.png
 ├── output/
-│   ├── screenshot1.png
-│   ├── screenshot2.jpg
-│   └── screenshot3.png
+│   ├── screenshot1.png        # Cropped and placed on background
+│   ├── screenshot2.jpg        # Cropped and placed on background
+│   └── screenshot3.png        # Cropped and placed on background
 └── screenshot-cropper.json
 ```
 
