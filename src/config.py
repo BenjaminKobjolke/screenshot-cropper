@@ -3,96 +3,9 @@ Configuration handler for the Screenshot Cropper application.
 """
 import json
 import logging
-from dataclasses import dataclass
+from src.models.settings import CropSettings, BackgroundSettings, TextSettings
 
 logger = logging.getLogger("screenshot_cropper")
-
-@dataclass
-class CropSettings:
-    """Class to store crop settings."""
-    top: int
-    left: int = 0
-    right: int = 0
-    bottom: int = 0
-    
-    def __post_init__(self):
-        """Validate crop settings after initialization."""
-        if self.top < 0:
-            logger.warning(f"Invalid top value: {self.top}, setting to 0")
-            self.top = 0
-        if self.left < 0:
-            logger.warning(f"Invalid left value: {self.left}, setting to 0")
-            self.left = 0
-        if self.right < 0:
-            logger.warning(f"Invalid right value: {self.right}, setting to 0")
-            self.right = 0
-        if self.bottom < 0:
-            logger.warning(f"Invalid bottom value: {self.bottom}, setting to 0")
-            self.bottom = 0
-
-@dataclass
-class BackgroundSettings:
-    """Class to store background image settings."""
-    file: str
-    position_x: int
-    position_y: int
-    width: int
-    height: int
-    
-    def __post_init__(self):
-        """Validate background settings after initialization."""
-        if self.position_x < 0:
-            logger.warning(f"Invalid position_x value: {self.position_x}, setting to 0")
-            self.position_x = 0
-        if self.position_y < 0:
-            logger.warning(f"Invalid position_y value: {self.position_y}, setting to 0")
-            self.position_y = 0
-        if self.width <= 0:
-            logger.warning(f"Invalid width value: {self.width}, setting to 100")
-            self.width = 100
-        if self.height <= 0:
-            logger.warning(f"Invalid height value: {self.height}, setting to 100")
-            self.height = 100
-
-@dataclass
-class TextSettings:
-    """Class to store text overlay settings."""
-    font_files: dict  # Dictionary of language codes to font files
-    font_size: int
-    align: str  # "left", "center", or "right"
-    x: int
-    y: int
-    width: int
-    height: int
-    vertical_align: str = "top"  # "top", "middle", or "bottom"
-    color: tuple = (0, 0, 0)  # RGB color tuple, default is black
-    
-    def __post_init__(self):
-        """Validate text settings after initialization."""
-        if not isinstance(self.font_files, dict) or "default" not in self.font_files:
-            logger.warning("Invalid font_files value, must be a dictionary with a 'default' key")
-            self.font_files = {"default": "Arial.ttf"}
-        if self.font_size <= 0:
-            logger.warning(f"Invalid font_size value: {self.font_size}, setting to 24")
-            self.font_size = 24
-        if self.align not in ["left", "center", "right"]:
-            logger.warning(f"Invalid align value: {self.align}, setting to 'left'")
-            self.align = "left"
-        if self.vertical_align not in ["top", "middle", "bottom"]:
-            logger.warning(f"Invalid vertical_align value: {self.vertical_align}, setting to 'top'")
-            self.vertical_align = "top"
-        if self.x < 0:
-            logger.warning(f"Invalid x value: {self.x}, setting to 0")
-            self.x = 0
-        if self.y < 0:
-            logger.warning(f"Invalid y value: {self.y}, setting to 0")
-            self.y = 0
-        if self.width <= 0:
-            logger.warning(f"Invalid width value: {self.width}, setting to 100")
-            self.width = 100
-        if self.height <= 0:
-            logger.warning(f"Invalid height value: {self.height}, setting to 100")
-            self.height = 100
 
 class ConfigHandler:
     """Handler for configuration file operations."""

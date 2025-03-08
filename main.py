@@ -9,6 +9,7 @@ import sys
 from src.config import ConfigHandler
 from src.image_processor import ImageProcessor
 from src.locale_handler import LocaleHandler
+from src.text_processor import TextProcessor
 from src.logger import setup_logger
 
 def parse_arguments():
@@ -84,6 +85,12 @@ def main():
         else:
             logger.warning(f"Locales directory not found: {locales_dir}")
     
+    # Initialize text processor if text settings are available
+    text_processor = None
+    if text_settings:
+        text_processor = TextProcessor(text_settings)
+        logger.info("Initialized text processor")
+    
     # Process images
     try:
         image_processor = ImageProcessor(
@@ -91,7 +98,7 @@ def main():
             output_dir, 
             crop_settings, 
             background_settings, 
-            text_settings, 
+            text_processor, 
             locale_handler
         )
         processed_count = image_processor.process_images()
