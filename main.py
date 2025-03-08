@@ -8,6 +8,7 @@ import os
 import sys
 from src.config import ConfigHandler
 from src.image_processor import ImageProcessor
+from src.locale_handler import LocaleHandler
 from src.logger import setup_logger
 
 def parse_arguments():
@@ -62,13 +63,37 @@ def main():
             logger.info(f"Loaded background settings: {background_settings}")
         else:
             logger.info("No background settings found, images will only be cropped")
+            
+        # Load text settings if available
+        text_settings = config_handler.get_text_settings()
+        if text_settings:
+            logger.info(f"Loaded text settings: {text_settings}")
+        else:
+            logger.info("No text settings found, no text will be added")
     except Exception as e:
         logger.error(f"Failed to load configuration: {e}")
         sys.exit(1)
     
+    # Initialize locale handler if text settings are available
+    locale_handler = None
+    if text_settings:
+        locales_dir = os.path.join(directory, "input", "locales")
+        if os.path.isdir(locales_dir):
+            locale_handler = LocaleHandler(locales_dir)
+            logger.info(f"Initialized locale handler with locales: {', '.join(locale_handler.get_locales())}")
+        else:
+            logger.warning(f"Locales directory not found: {locales_dir}")
+    
     # Process images
     try:
-        image_processor = ImageProcessor(input_dir, output_dir, crop_settings, background_settings)
+        image_processor = ImageProcessor(
+            input_dir, 
+            output_dir, 
+            crop_settings, 
+            background_settings, 
+            text_settings, 
+            locale_handler
+        )
         processed_count = image_processor.process_images()
         logger.info(f"Successfully processed {processed_count} images")
     except Exception as e:

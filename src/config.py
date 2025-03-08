@@ -54,6 +54,46 @@ class BackgroundSettings:
             logger.warning(f"Invalid height value: {self.height}, setting to 100")
             self.height = 100
 
+@dataclass
+class TextSettings:
+    """Class to store text overlay settings."""
+    font_files: dict  # Dictionary of language codes to font files
+    font_size: int
+    align: str  # "left", "center", or "right"
+    x: int
+    y: int
+    width: int
+    height: int
+    vertical_align: str = "top"  # "top", "middle", or "bottom"
+    color: tuple = (0, 0, 0)  # RGB color tuple, default is black
+    
+    def __post_init__(self):
+        """Validate text settings after initialization."""
+        if not isinstance(self.font_files, dict) or "default" not in self.font_files:
+            logger.warning("Invalid font_files value, must be a dictionary with a 'default' key")
+            self.font_files = {"default": "Arial.ttf"}
+        if self.font_size <= 0:
+            logger.warning(f"Invalid font_size value: {self.font_size}, setting to 24")
+            self.font_size = 24
+        if self.align not in ["left", "center", "right"]:
+            logger.warning(f"Invalid align value: {self.align}, setting to 'left'")
+            self.align = "left"
+        if self.vertical_align not in ["top", "middle", "bottom"]:
+            logger.warning(f"Invalid vertical_align value: {self.vertical_align}, setting to 'top'")
+            self.vertical_align = "top"
+        if self.x < 0:
+            logger.warning(f"Invalid x value: {self.x}, setting to 0")
+            self.x = 0
+        if self.y < 0:
+            logger.warning(f"Invalid y value: {self.y}, setting to 0")
+            self.y = 0
+        if self.width <= 0:
+            logger.warning(f"Invalid width value: {self.width}, setting to 100")
+            self.width = 100
+        if self.height <= 0:
+            logger.warning(f"Invalid height value: {self.height}, setting to 100")
+            self.height = 100
+
 class ConfigHandler:
     """Handler for configuration file operations."""
     
@@ -160,4 +200,64 @@ class ConfigHandler:
             )
         except KeyError as e:
             logger.error(f"Missing required background setting: {e}")
+            return None
+    
+    def get_text_settings(self):
+        """
+        Get text settings from configuration.
+        
+        Returns:
+            TextSettings: Text settings object, or None if not configured.
+        
+        Raises:
+            KeyError: If required text settings are missing.
+        """
+        try:
+            # Check if text settings are present
+            if "text" not in self.config_data:
+                return None
+            
+            text_data = self.config_data["text"]
+            
+            # Get font settings
+            font_data = text_data.get("font", {})
+            
+            # Get font properties
+            font_files = font_data.get("files", {"default": "Arial.ttf"})
+            if "default" not in font_files:
+                logger.warning("No default font specified, using Arial.ttf")
+                font_files["default"] = "Arial.ttf"
+                
+            font_size = font_data.get("size", 24)
+            
+            # Get alignment settings
+            align = font_data.get("align", "left")
+            vertical_align = font_data.get("vertical-align", "top")
+            
+            # Get position and size
+            x = font_data.get("x", 0)
+            y = font_data.get("y", 0)
+            width = font_data.get("width", 100)
+            height = font_data.get("height", 100)
+            
+            # Get color (default is black)
+            color_data = font_data.get("color", {})
+            r = color_data.get("r", 0)
+            g = color_data.get("g", 0)
+            b = color_data.get("b", 0)
+            color = (r, g, b)
+            
+            return TextSettings(
+                font_files=font_files,
+                font_size=font_size,
+                align=align,
+                vertical_align=vertical_align,
+                x=x,
+                y=y,
+                width=width,
+                height=height,
+                color=color
+            )
+        except KeyError as e:
+            logger.error(f"Missing required text setting: {e}")
             return None

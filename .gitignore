@@ -38,3 +38,5 @@ venv/
 .DS_Store
 Thumbs.db
 test
+start_json_translator.bat
+fonts
