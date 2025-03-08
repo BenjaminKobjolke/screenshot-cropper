@@ -1,0 +1,3 @@
+"""
+Screenshot Cropper package.
+"""
