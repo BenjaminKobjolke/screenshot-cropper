@@ -5,6 +5,7 @@ import logging
 import os
 import os.path
 from PIL import Image
+from src.psd_processor import PSDProcessor
 
 logger = logging.getLogger("screenshot_cropper")
 
@@ -29,7 +30,8 @@ class ImageProcessor:
         self.background_settings = background_settings
         self.text_processor = text_processor
         self.locale_handler = locale_handler
-        self.supported_extensions = ('.png', '.jpg', '.jpeg')
+        self.supported_extensions = ('.png', '.jpg', '.jpeg', '.psd')
+        self.psd_processor = PSDProcessor(locale_handler)
     
     def process_images(self):
         """
@@ -130,6 +132,12 @@ class ImageProcessor:
         else:
             logger.info(f"Processing image: {filename}")
         
+        # Handle PSD files differently
+        if filename.lower().endswith('.psd'):
+            # For PSD files, always save as PNG
+            output_path = output_path.rsplit('.', 1)[0] + '.png'
+            return self._process_psd(image_path, output_path, locale)
+        
         try:
             # Open image
             with Image.open(image_path) as img:
@@ -198,3 +206,27 @@ class ImageProcessor:
         except Exception as e:
             logger.error(f"Error processing image {filename}: {e}")
             raise
+    
+    def _process_psd(self, psd_path, output_path, locale=None):
+        """
+        Process a PSD file using the PSD processor.
+        
+        Args:
+            psd_path (str): Path to the PSD file.
+            output_path (str): Path to save the output PNG file.
+            locale (str, optional): Locale code for text translation.
+            
+        Returns:
+            bool: True if processing was successful.
+            
+        Raises:
+            Exception: If PSD processing fails.
+        """
+        logger.info(f"Processing PSD file: {os.path.basename(psd_path)}")
+        
+        success = self.psd_processor.process_psd(psd_path, output_path, locale)
+        
+        if not success:
+            raise Exception(f"Failed to process PSD file: {psd_path}")
+        
+        return True

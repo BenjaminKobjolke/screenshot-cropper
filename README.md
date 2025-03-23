@@ -4,9 +4,10 @@ A Python application to crop screenshots based on JSON configuration.
 
 ## Features
 
-- Crop multiple PNG and JPG images at once
+- Crop multiple PNG, JPG, and PSD images at once
 - Place cropped images on a background image
 - Add localized text overlays to images
+- Process PSD files with text layer translation
 - Generate multiple language versions of each image
 - Configure crop, background, and text settings via JSON
 - Automatically create output directory
@@ -16,6 +17,7 @@ A Python application to crop screenshots based on JSON configuration.
 
 - Python 3.6 or higher
 - Pillow library
+- photoshop-python-api (optional, for advanced PSD processing)
 
 ## Installation
 
@@ -138,6 +140,30 @@ If background settings are not provided, images will only be cropped.
 
 If text settings are provided, the application will look for locale files in the `input/locales` directory. Each locale file should be a JSON file named with the locale code (e.g., `en.json`, `de.json`) and contain a dictionary of texts with keys in the format "Text_1", "Text_2", etc.
 
+## PSD Processing
+
+The application can process PSD files in two ways:
+
+1. **Basic Processing**: Without Photoshop installed, PSD files will be opened and saved as PNG files without any text layer modifications.
+
+2. **Advanced Processing with Photoshop**: If Photoshop is installed and the photoshop-python-api package is available, the application can translate text layers in PSD files.
+
+### Text Layer Translation in PSD Files
+
+To enable text layer translation in PSD files:
+
+1. Name your text layers with the prefix `lang_` followed by the translation key. For example, a text layer named `lang_email` will be translated using the key "email" from the locale files.
+
+2. Ensure your locale files contain the corresponding translation keys. For example, if you have a text layer named `lang_email`, your locale files should contain an entry for "email" or "Text_email".
+
+Example:
+
+- Text layer named `lang_email`
+- English locale file (`en.json`): `{ "email": "Email Address" }`
+- German locale file (`de.json`): `{ "email": "E-Mail-Adresse" }`
+
+The application will generate separate output images for each locale, with the translated text in the appropriate language.
+
 Example locale file (`en.json`):
 
 ```json
@@ -165,7 +191,8 @@ my-screenshots/
 │   └── screenshots/
 │       ├── screenshot1.png
 │       ├── screenshot2.jpg
-│       └── screenshot3.png
+│       ├── screenshot3.png
+│       └── design.psd          # PSD file with text layers
 └── screenshot-cropper.json
 ```
 
@@ -187,14 +214,17 @@ my-screenshots/
 │   └── screenshots/
 │       ├── screenshot1.png
 │       ├── screenshot2.jpg
-│       └── screenshot3.png
+│       ├── screenshot3.png
+│       └── design.psd
 ├── output/
 │   ├── screenshot1_en.png     # English version
 │   ├── screenshot1_de.png     # German version
 │   ├── screenshot2_en.jpg     # English version
 │   ├── screenshot2_de.jpg     # German version
 │   ├── screenshot3_en.png     # English version
-│   └── screenshot3_de.png     # German version
+│   ├── screenshot3_de.png     # German version
+│   ├── design_en.png          # English version of PSD
+│   └── design_de.png          # German version of PSD
 └── screenshot-cropper.json
 ```
 
