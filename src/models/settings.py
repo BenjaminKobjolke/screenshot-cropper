@@ -90,7 +90,7 @@ class TextSettings:
     """Class to store text overlay settings."""
     
     def __init__(self, font_files, font_size, align, x, y, width, height, 
-                 vertical_align="top", color=(0, 0, 0)):
+                 vertical_align="top", color=(0, 0, 0), font_names=None):
         """
         Initialize text settings.
         
@@ -105,6 +105,8 @@ class TextSettings:
             vertical_align (str, optional): Vertical alignment ("top", "middle", or "bottom"). 
                                            Defaults to "top".
             color (tuple, optional): RGB color tuple. Defaults to (0, 0, 0) (black).
+            font_names (dict, optional): Dictionary of language codes to font names for Photoshop.
+                                        Defaults to None.
         """
         self.font_files = font_files
         self.font_size = font_size
@@ -115,6 +117,7 @@ class TextSettings:
         self.height = height
         self.vertical_align = vertical_align
         self.color = color
+        self.font_names = font_names or {}
         self._validate()
     
     def _validate(self):

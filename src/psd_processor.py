@@ -3,20 +3,23 @@ PSD processor module for the Screenshot Cropper application.
 """
 import logging
 import os
+import json
 
 logger = logging.getLogger("screenshot_cropper")
 
 class PSDProcessor:
     """Handler for PSD file processing operations."""
     
-    def __init__(self, locale_handler=None):
+    def __init__(self, locale_handler=None, text_settings=None):
         """
         Initialize the PSDProcessor.
         
         Args:
             locale_handler (LocaleHandler, optional): Handler for locale texts.
+            text_settings (TextSettings, optional): Text settings for font configuration.
         """
         self.locale_handler = locale_handler
+        self.text_settings = text_settings
     
     def process_psd(self, psd_path, output_path, locale=None):
         """
@@ -164,6 +167,7 @@ class PSDProcessor:
                         
                         # Close all documents when done
                         logger.info("Closing all documents in Photoshop")
+                        exit()
                         try:
                             while ps.app.documents.length > 0:
                                 ps.active_document.close(ps.SaveOptions.DoNotSaveChanges)
@@ -237,9 +241,41 @@ class PSDProcessor:
                                 doc.activeLayer = layer
                                 
                                 # Use JavaScript to set the text content
-                                # Escape any quotes in the translated text to avoid breaking the JavaScript
-                                escaped_text = translated_text.replace('"', '\\"')
-                                js_script = f'app.activeDocument.activeLayer.textItem.contents = "{escaped_text}";'
+                                # Use json.dumps to properly handle all special characters including newlines
+                                js_safe_text = json.dumps(translated_text)
+                                
+                                # Get font name for this locale if available
+                                font_name = None
+                                if self.text_settings and hasattr(self.text_settings, 'font_names'):
+                                    font_name = self.text_settings.font_names.get(locale)
+                                    if font_name:
+                                        logger.info(f"Using font name for locale 123 {locale}: {font_name}")
+                                
+                                # Create JavaScript that replaces \n with paragraph breaks (\r)
+                                # and sets the font if specified
+                                js_script_font_name = '''
+                                var currentFont = app.activeDocument.activeLayer.textItem.font;
+                                alert("Current font: " + currentFont);
+                                '''
+                                #ps.app.doJavaScript(js_script_name)  
+
+                                js_script = f'''
+                                var textContent = {js_safe_text};
+                                // Replace encoded newlines with Photoshop paragraph breaks
+                                textContent = textContent.replace(/\\n/g, "\\r");
+                                app.activeDocument.activeLayer.textItem.contents = textContent;
+                                '''
+                                
+                                # Add font setting if a font name is specified for this locale
+                                if font_name:
+                                    js_script += f'''
+                                    // Set the font for the text layer
+                                    try {{
+                                        app.activeDocument.activeLayer.textItem.font = "{font_name}";
+                                    }} catch(e) {{
+                                        alert("Error setting font: " + e);
+                                    }}
+                                    '''
                                 ps.app.doJavaScript(js_script)
                                 
                                 logger.info(f"Translated text layer '{translation_key}' to '{translated_text}'")
@@ -303,10 +339,44 @@ class PSDProcessor:
                                     doc.activeLayer = layer
                                     
                                     # Use JavaScript to set the text content
-                                    # Escape any quotes in the translated text to avoid breaking the JavaScript
-                                    escaped_text = translated_text.replace('"', '\\"')
-                                    js_script = f'app.activeDocument.activeLayer.textItem.contents = "{escaped_text}";'
+                                    # Use json.dumps to properly handle all special characters including newlines
+                                    js_safe_text = json.dumps(translated_text)
+                                    
+                                    # Get font name for this locale if available
+                                    font_name = None
+                                    if self.text_settings and hasattr(self.text_settings, 'font_names'):
+                                        font_name = self.text_settings.font_names.get(locale)
+                                        if font_name:
+                                            logger.info(f"Using font name for locale {locale}: {font_name}")
+                                    
+                                    js_script_font_name = '''
+                                    var currentFont = app.activeDocument.activeLayer.textItem.font;
+                                    alert("Current font: " + currentFont);
+                                    '''
+                                    #ps.app.doJavaScript(js_script_font_name)  
+
+
+                                    # Create JavaScript that replaces \n with paragraph breaks (\r)
+                                    # and sets the font if specified
+                                    js_script = f'''
+                                    var textContent = {js_safe_text};
+                                    // Replace encoded newlines with Photoshop paragraph breaks
+                                    textContent = textContent.replace(/\\n/g, "\\r");
+                                    app.activeDocument.activeLayer.textItem.contents = textContent;
+                                    '''
+                                    
+                                    # Add font setting if a font name is specified for this locale
+                                    if font_name:
+                                        js_script += f'''
+                                        // Set the font for the text layer
+                                        try {{
+                                            app.activeDocument.activeLayer.textItem.font = "{font_name}";
+                                        }} catch(e) {{
+                                            alert("Error setting font: " + e);
+                                        }}
+                                        '''
                                     ps.app.doJavaScript(js_script)
+                                    #ps.app.doJavaScript(js_script_font_name)  
                                     
                                     logger.info(f"Translated text layer in group '{translation_key}' to '{translated_text}'")
                                 except Exception as text_error:

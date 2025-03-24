@@ -31,7 +31,14 @@ class ImageProcessor:
         self.text_processor = text_processor
         self.locale_handler = locale_handler
         self.supported_extensions = ('.png', '.jpg', '.jpeg', '.psd')
-        self.psd_processor = PSDProcessor(locale_handler)
+        
+        # Get text settings from text processor if available
+        text_settings = None
+        if text_processor and hasattr(text_processor, 'text_settings'):
+            text_settings = text_processor.text_settings
+            
+        # Initialize PSD processor with locale handler and text settings
+        self.psd_processor = PSDProcessor(locale_handler, text_settings)
     
     def process_images(self):
         """

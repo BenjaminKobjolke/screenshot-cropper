@@ -140,6 +140,9 @@ class ConfigHandler:
             if "default" not in font_files:
                 logger.warning("No default font specified, using Arial.ttf")
                 font_files["default"] = "Arial.ttf"
+            
+            # Get font names for Photoshop
+            font_names = font_data.get("names", {})
                 
             font_size = font_data.get("size", 24)
             
@@ -169,7 +172,8 @@ class ConfigHandler:
                 y=y,
                 width=width,
                 height=height,
-                color=color
+                color=color,
+                font_names=font_names
             )
         except KeyError as e:
             logger.error(f"Missing required text setting: {e}")
