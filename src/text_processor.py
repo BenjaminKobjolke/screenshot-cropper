@@ -66,18 +66,33 @@ class TextProcessor:
         # Get text dimensions measurement functions
         get_text_width, get_text_height = self._get_text_measurement_functions(draw, font)
         
-        # Check if text needs to be wrapped
-        text_width = get_text_width(text)
-        logger.info(f"Text width: {text_width} pixels for text '{text}' with font size {self.text_settings.font_size}")
+        # Split text by newline characters first
+        paragraphs = text.split('\n')
+        logger.info(f"Text contains {len(paragraphs)} paragraphs (split by newline characters)")
         
-        # Wrap text if it exceeds the specified width
-        if text_width > self.text_settings.width:
-            logger.info(f"Text width ({text_width}) exceeds specified width ({self.text_settings.width}), wrapping text")
-            lines = self._wrap_text(text, font, get_text_width, self.text_settings.width)
-            logger.info(f"Text wrapped into {len(lines)} lines")
-        else:
-            lines = [text]
-            logger.info("Text fits within specified width, no wrapping needed")
+        # Process each paragraph for width-based wrapping
+        lines = []
+        for paragraph in paragraphs:
+            # Skip empty paragraphs but preserve the line break
+            if not paragraph:
+                lines.append("")
+                continue
+                
+            # Check if paragraph needs to be wrapped
+            paragraph_width = get_text_width(paragraph)
+            logger.info(f"Paragraph width: {paragraph_width} pixels for text '{paragraph}' with font size {self.text_settings.font_size}")
+            
+            # Wrap paragraph if it exceeds the specified width
+            if paragraph_width > self.text_settings.width:
+                logger.info(f"Paragraph width ({paragraph_width}) exceeds specified width ({self.text_settings.width}), wrapping text")
+                wrapped_lines = self._wrap_text(paragraph, font, get_text_width, self.text_settings.width)
+                lines.extend(wrapped_lines)
+                logger.info(f"Paragraph wrapped into {len(wrapped_lines)} lines")
+            else:
+                lines.append(paragraph)
+                logger.info("Paragraph fits within specified width, no wrapping needed")
+        
+        logger.info(f"Total lines after handling newlines and wrapping: {len(lines)}")
         
         # Calculate line heights
         line_heights = [get_text_height(line) for line in lines]

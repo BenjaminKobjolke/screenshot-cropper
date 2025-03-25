@@ -140,6 +140,33 @@ If background settings are not provided, images will only be cropped.
 
 If text settings are provided, the application will look for locale files in the `input/locales` directory. Each locale file should be a JSON file named with the locale code (e.g., `en.json`, `de.json`) and contain a dictionary of texts with keys in the format "Text_1", "Text_2", etc.
 
+#### Text Formatting
+
+The application supports the following text formatting features:
+
+- **Newline Characters**: You can use `\n` in your text strings to create line breaks. For example:
+
+  ```json
+  {
+    "Text_1": "Share video link\nand ask questions"
+  }
+  ```
+
+  This will display "Share video link" and "and ask questions" on separate lines.
+
+- **Automatic Text Wrapping**: Text that exceeds the specified width will be automatically wrapped to fit within the text area.
+
+### Filename-based Text Indexing
+
+The application supports using filenames as indices for text retrieval. If your image filenames are numeric (e.g., "01.png", "02.png", "1.psd", "2.psd"), the application will use these numbers as indices to retrieve the corresponding text from the locale files.
+
+For example:
+
+- An image named "01.png" will use the text with key "Text_1" or "1" from the locale file
+- An image named "02.png" will use the text with key "Text_2" or "2" from the locale file
+
+This feature allows you to explicitly control which text is applied to which image, regardless of the order in which the images are processed. If a filename is not numeric, the application will fall back to using the iteration index.
+
 ## PSD Processing
 
 The application can process PSD files in two ways:

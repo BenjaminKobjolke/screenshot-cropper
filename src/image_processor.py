@@ -6,6 +6,7 @@ import os
 import os.path
 from PIL import Image
 from src.psd_processor import PSDProcessor
+from src.image_compositor import ImageCompositor
 
 logger = logging.getLogger("screenshot_cropper")
 
@@ -39,6 +40,12 @@ class ImageProcessor:
             
         # Initialize PSD processor with locale handler and text settings
         self.psd_processor = PSDProcessor(locale_handler, text_settings)
+        
+        # Initialize image compositor for consistent image processing
+        # Pass the directory containing the input and output directories as the base directory
+        base_dir = os.path.dirname(os.path.dirname(input_dir))
+        self.image_compositor = ImageCompositor(crop_settings, background_settings, text_processor, base_dir)
+        logger.info(f"Initialized image compositor with base directory: {base_dir}")
     
     def process_images(self):
         """
@@ -59,8 +66,20 @@ class ImageProcessor:
             if locales:
                 logger.info(f"Processing images for {len(locales)} locales: {', '.join(locales)}")
                 for i, image_file in enumerate(image_files):
+                    # Extract filename without extension and check if it's a valid integer
+                    filename = os.path.basename(image_file)
+                    name, _ = os.path.splitext(filename)
+                    
+                    # Use filename as index if it's a valid integer, otherwise use iteration index
+                    text_index = int(name) if name.isdigit() else i
+                    
+                    # Determine whether to add one to the index when getting text
+                    # If using filename as index, don't add one
+                    add_one = not name.isdigit()
+                    
                     for locale in locales:
-                        text = self.locale_handler.get_text(locale, i)
+                        logger.info(f"Processing image {filename} (index: {text_index}, add_one: {add_one}) for locale {locale}")
+                        text = self.locale_handler.get_text(locale, text_index, add_one=add_one)
                         try:
                             self._process_image(image_file, locale=locale, text=text)
                             processed_count += 1
@@ -143,78 +162,17 @@ class ImageProcessor:
         if filename.lower().endswith('.psd'):
             # For PSD files, always save as PNG
             output_path = output_path.rsplit('.', 1)[0] + '.png'
-            return self._process_psd(image_path, output_path, locale)
+            return self._process_psd(image_path, output_path, locale, text)
         
-        try:
-            # Open image
-            with Image.open(image_path) as img:
-                # Get image dimensions
-                width, height = img.size
-                
-                # Calculate crop box
-                left = self.crop_settings.left
-                top = self.crop_settings.top
-                right = width - self.crop_settings.right if self.crop_settings.right > 0 else width
-                bottom = height - self.crop_settings.bottom if self.crop_settings.bottom > 0 else height
-                
-                # Ensure valid crop box
-                if left >= right or top >= bottom:
-                    logger.warning(f"Invalid crop box for {filename}: {left}, {top}, {right}, {bottom}")
-                    logger.warning("Skipping crop for this image")
-                    img.save(output_path)
-                    return
-                
-                # Crop image
-                cropped_img = img.crop((left, top, right, bottom))
-                
-                # If background settings are provided, apply background
-                if self.background_settings:
-                    try:
-                        # Get the path to the background image (in the input directory)
-                        bg_path = os.path.join(os.path.dirname(os.path.dirname(self.input_dir)), "input", self.background_settings.file)
-                        
-                        logger.info(f"Loading background image from: {bg_path}")
-                        
-                        # Check if background image exists
-                        if not os.path.isfile(bg_path):
-                            logger.error(f"Background image not found: {bg_path}")
-                            # Save just the cropped image
-                            cropped_img.save(output_path)
-                            logger.info(f"Saved cropped image to: {output_path}")
-                            return
-                        
-                        # Open background image
-                        with Image.open(bg_path) as bg_img:
-                            # Resize cropped image to specified dimensions
-                            resized_img = cropped_img.resize((self.background_settings.width, self.background_settings.height))
-                            
-                            # Create a copy of the background
-                            final_img = bg_img.copy()
-                            
-                            # Paste cropped image onto background
-                            final_img.paste(resized_img, (self.background_settings.position_x, self.background_settings.position_y))
-                            
-                            # If text processor and text are provided, draw text
-                            if self.text_processor and text:
-                                final_img = self.text_processor.draw_text(final_img, text, locale)
-                            
-                            # Save final image
-                            final_img.save(output_path)
-                            logger.info(f"Saved composite image to: {output_path}")
-                    except Exception as e:
-                        logger.error(f"Error applying background to {filename}: {e}")
-                        # Save just the cropped image as fallback
-                        cropped_img.save(output_path)
-                        logger.info(f"Saved cropped image to: {output_path}")
-                else:
-                    # Save just the cropped image
-                    cropped_img.save(output_path)
-                    logger.info(f"Saved cropped image to: {output_path}")
-        except Exception as e:
-            logger.error(f"Error processing image {filename}: {e}")
-            raise
+        # Use the image compositor to process the image
+        success = self.image_compositor.process_image(image_path, output_path, text, locale)
+        
+        if not success:
+            raise Exception(f"Failed to process image: {image_path}")
+        
+        return True
     
-    def _process_psd(self, psd_path, output_path, locale=None):
+    def _process_psd(self, psd_path, output_path, locale=None, text=None):
         """
         Process a PSD file using the PSD processor.
         
@@ -222,6 +180,7 @@ class ImageProcessor:
             psd_path (str): Path to the PSD file.
             output_path (str): Path to save the output PNG file.
             locale (str, optional): Locale code for text translation.
+            text (str, optional): Text to overlay on the image.
             
         Returns:
             bool: True if processing was successful.
@@ -231,9 +190,42 @@ class ImageProcessor:
         """
         logger.info(f"Processing PSD file: {os.path.basename(psd_path)}")
         
-        success = self.psd_processor.process_psd(psd_path, output_path, locale)
+        # Create a temporary path for the initial PNG output
+        temp_output_dir = os.path.dirname(output_path)
+        temp_filename = f"temp_{os.path.basename(output_path)}"
+        temp_output_path = os.path.join(temp_output_dir, temp_filename)
+        
+        # Process the PSD file and save to temporary location
+        success = self.psd_processor.process_psd(psd_path, temp_output_path, locale)
         
         if not success:
             raise Exception(f"Failed to process PSD file: {psd_path}")
+        
+        # Use the image compositor to process the temporary PNG file
+        if os.path.exists(temp_output_path):
+            try:
+                # Process the temporary PNG using the image compositor
+                logger.info(f"Applying compositor to processed PSD output: {temp_output_path}")
+                success = self.image_compositor.process_image(temp_output_path, output_path, text, locale)
+                
+                if not success:
+                    raise Exception(f"Failed to apply compositor to processed PSD: {temp_output_path}")
+                
+                # Remove the temporary file
+                if os.path.exists(temp_output_path):
+                    os.remove(temp_output_path)
+                    logger.info(f"Removed temporary file: {temp_output_path}")
+                
+                return True
+                
+            except Exception as e:
+                logger.error(f"Error processing PSD output: {e}")
+                # If there was an error, use the temporary file as the output
+                if os.path.exists(temp_output_path):
+                    os.replace(temp_output_path, output_path)
+                    logger.info(f"Saved unprocessed PSD output to: {output_path}")
+        else:
+            logger.error(f"Temporary PSD output file not found: {temp_output_path}")
+            return False
         
         return True

@@ -167,7 +167,6 @@ class PSDProcessor:
                         
                         # Close all documents when done
                         logger.info("Closing all documents in Photoshop")
-                        exit()
                         try:
                             while ps.app.documents.length > 0:
                                 ps.active_document.close(ps.SaveOptions.DoNotSaveChanges)

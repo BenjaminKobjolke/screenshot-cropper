@@ -63,13 +63,15 @@ class LocaleHandler:
         """
         return list(self.locales.keys())
     
-    def get_text(self, locale_code, index):
+    def get_text(self, locale_code, index, add_one=True):
         """
         Get text for a specific locale and index.
         
         Args:
             locale_code (str): Locale code (e.g., "en").
             index (int): Index of the text in the locale array or key in the dictionary.
+            add_one (bool, optional): Whether to add 1 to the index when forming the key. 
+                                     Defaults to True for backward compatibility.
             
         Returns:
             str: Text for the specified locale and index, or None if not found.
@@ -83,7 +85,8 @@ class LocaleHandler:
         # Handle dictionary format
         if isinstance(texts, dict):
             # Try to get text using "Text_X" format
-            key = f"Text_{index + 1}"
+            key_index = index + 1 if add_one else index
+            key = f"Text_{key_index}"
             if key in texts:
                 return texts[key]
             
