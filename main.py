@@ -10,6 +10,7 @@ from src.config import ConfigHandler
 from src.image_processor import ImageProcessor
 from src.locale_handler import LocaleHandler
 from src.text_processor import TextProcessor
+from src.psd_processor import PSDProcessor # Added import
 from src.logger import setup_logger
 
 def parse_arguments():
@@ -40,40 +41,54 @@ def main():
         logger.error(f"Input directory '{input_dir}' does not exist")
         sys.exit(1)
     
-    # Check if configuration file exists
-    config_file = os.path.join(directory, "screenshot-cropper.json")
-    if not os.path.isfile(config_file):
-        logger.error(f"Configuration file '{config_file}' does not exist")
-        sys.exit(1)
+    # Initialize settings to None
+    crop_settings = None
+    background_settings = None
+    text_settings = None
     
+    config_file = os.path.join(directory, "screenshot-cropper.json")
+
     # Create output directory if it doesn't exist
     output_dir = os.path.join(directory, "output")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         logger.info(f"Created output directory: {output_dir}")
-    
-    # Load configuration
-    try:
-        config_handler = ConfigHandler(config_file)
-        crop_settings = config_handler.get_crop_settings()
-        logger.info(f"Loaded crop settings: {crop_settings}")
-        
-        # Load background settings if available
-        background_settings = config_handler.get_background_settings()
-        if background_settings:
-            logger.info(f"Loaded background settings: {background_settings}")
-        else:
-            logger.info("No background settings found, images will only be cropped")
-            
-        # Load text settings if available
-        text_settings = config_handler.get_text_settings()
-        if text_settings:
-            logger.info(f"Loaded text settings: {text_settings}")
-        else:
-            logger.info("No text settings found, no text will be added")
-    except Exception as e:
-        logger.error(f"Failed to load configuration: {e}")
-        sys.exit(1)
+
+    if not os.path.isfile(config_file):
+        logger.warning(f"Configuration file '{config_file}' not found. Cropping, background addition, and text overlay will be skipped.")
+    else:
+        logger.info(f"Attempting to load configuration from '{config_file}'")
+        try:
+            config_handler = ConfigHandler(config_file)
+            # Attempt to load crop_settings. It's crucial.
+            current_crop_settings = config_handler.get_crop_settings()
+            if current_crop_settings:
+                crop_settings = current_crop_settings # Assign to the main variable
+                logger.info(f"Loaded crop settings: {crop_settings}")
+            else:
+                # crop_settings remains None if not found or empty
+                logger.warning(f"No crop settings found in '{config_file}'. Cropping will be skipped.")
+
+            # Background and text settings are optional, assign if found
+            current_background_settings = config_handler.get_background_settings()
+            if current_background_settings:
+                background_settings = current_background_settings
+                logger.info(f"Loaded background settings: {background_settings}")
+            else:
+                logger.info(f"No background settings found in '{config_file}', or section is missing.")
+                
+            current_text_settings = config_handler.get_text_settings()
+            if current_text_settings:
+                text_settings = current_text_settings
+                logger.info(f"Loaded text settings: {text_settings}")
+            else:
+                logger.info(f"No text settings found in '{config_file}', or section is missing.")
+        except Exception as e:
+            logger.error(f"Failed to load or parse configuration from '{config_file}': {e}. Cropping, background, and text overlay will be skipped.")
+            # Ensure settings are reset to None if any error occurred during parsing
+            crop_settings = None
+            background_settings = None
+            text_settings = None
     
     # Initialize locale handler if text settings are available
     locale_handler = None
@@ -91,23 +106,118 @@ def main():
         text_processor = TextProcessor(text_settings)
         logger.info("Initialized text processor")
     
-    # Process images
-    try:
-        image_processor = ImageProcessor(
-            input_dir, 
-            output_dir, 
-            crop_settings, 
-            background_settings, 
-            text_processor, 
-            locale_handler
-        )
-        processed_count = image_processor.process_images()
-        logger.info(f"Successfully processed {processed_count} images")
-    except Exception as e:
-        logger.error(f"Failed to process images: {e}")
-        sys.exit(1)
+    # Process images only if crop_settings were successfully loaded
+    if crop_settings:
+        logger.info("Proceeding with image processing (cropping, background, text).")
+        try:
+            image_processor = ImageProcessor(
+                input_dir, 
+                output_dir, 
+                crop_settings, 
+                background_settings, 
+                text_processor, 
+                locale_handler
+            )
+            processed_count = image_processor.process_images()
+            logger.info(f"Successfully processed {processed_count} images for cropping/text.")
+        except Exception as e:
+            logger.error(f"Failed to process images: {e}")
+            sys.exit(1) # If processing starts but fails, it's a critical error for this part.
+    else:
+        logger.info("Skipping image cropping, background addition, and text overlay as no valid crop settings were loaded.")
     
-    logger.info("Screenshot cropping completed successfully")
+    logger.info("Main script operations for screenshot processing finished.")
+
+    # Initialize a separate LocaleHandler for PSD processing
+    psd_locale_handler = None
+    psd_locales_dir = os.path.join(directory, "input", "locales")
+    if os.path.isdir(psd_locales_dir):
+        try:
+            psd_locale_handler = LocaleHandler(psd_locales_dir)
+            if psd_locale_handler.get_locales():
+                logger.info(f"Initialized LocaleHandler for PSD processing with locales: {', '.join(psd_locale_handler.get_locales())}")
+            else:
+                logger.info(f"LocaleHandler for PSD initialized, but no locale files found in '{psd_locales_dir}'. PSDs will be processed to 'default' output.")
+                psd_locale_handler = None # Ensure it's None if no actual locales
+        except Exception as e:
+            logger.error(f"Failed to initialize LocaleHandler for PSD processing from '{psd_locales_dir}': {e}")
+            psd_locale_handler = None
+    else:
+        logger.info(f"Locales directory '{psd_locales_dir}' not found for PSD processing. PSDs will be processed to 'default' output without localization.")
+
+    # --- PSD Processing Section ---
+    logger.info("Starting PSD processing if applicable.")
+    # PSD files are now expected in the main 'input/screenshots' directory
+    psd_input_dir = os.path.join(directory, "input", "screenshots")
+    # Base output for PSDs is now directly under 'output_dir', then locale or 'default'.
+    # The 'psd_output_dir_base' variable is no longer needed here as paths are constructed fully below.
+
+    # We already check for input_dir (which is 'input/screenshots') at the beginning.
+    # So, psd_input_dir should exist if we've reached this point and it's the same as input_dir.
+    # However, it's good practice to ensure the logic flows correctly if paths were different.
+    # For this specific change, psd_input_dir is the same as input_dir used for general images.
+    if not os.path.isdir(psd_input_dir): # This check might be redundant if input_dir check passed
+        logger.warning(f"PSD input directory (expected at '{psd_input_dir}') not found. This might indicate an issue if it's different from the main screenshot input. Skipping PSD processing.")
+    else:
+        logger.info(f"Found PSD input directory: {psd_input_dir}")
+        
+        # Initialize PSDProcessor
+        # It will use the independent psd_locale_handler and text_settings (if loaded from screenshot-cropper.json)
+        try:
+            psd_processor = PSDProcessor(locale_handler=psd_locale_handler, text_settings=text_settings)
+            logger.info("Initialized PSDProcessor for PSD file handling.")
+
+            psd_files_processed_count = 0
+            for filename in os.listdir(psd_input_dir):
+                if filename.lower().endswith(".psd"):
+                    psd_file_path = os.path.join(psd_input_dir, filename)
+                    logger.info(f"Found PSD file for processing: {psd_file_path}")
+
+                    if psd_locale_handler and psd_locale_handler.get_locales():
+                        logger.info(f"Processing PSD '{filename}' for locales: {', '.join(psd_locale_handler.get_locales())}")
+                        for loc in psd_locale_handler.get_locales():
+                            # Output path is now output_dir / locale / filename.png
+                            locale_specific_output_dir = os.path.join(output_dir, loc)
+                            if not os.path.exists(locale_specific_output_dir):
+                                os.makedirs(locale_specific_output_dir)
+                                logger.info(f"Created PSD output directory for locale '{loc}': {locale_specific_output_dir}")
+                            
+                            output_png_filename = os.path.basename(psd_file_path).replace('.psd', '.png').replace('.PSD', '.png')
+                            output_png_path = os.path.join(locale_specific_output_dir, output_png_filename)
+                            
+                            logger.info(f"Processing PSD '{psd_file_path}' for locale '{loc}' -> '{output_png_path}'")
+                            if psd_processor.process_psd(psd_file_path, output_png_path, locale=loc):
+                                psd_files_processed_count += 1
+                            else:
+                                logger.error(f"Failed to process PSD '{psd_file_path}' for locale '{loc}'")
+                    else:
+                        logger.info(f"No active locales for PSD processing of '{filename}'. Processing to 'default' directory.")
+                        # Output path is now output_dir / default / filename.png
+                        default_output_dir = os.path.join(output_dir, "default")
+                        if not os.path.exists(default_output_dir):
+                            os.makedirs(default_output_dir)
+                            logger.info(f"Created default PSD output directory: {default_output_dir}")
+
+                        output_png_filename = os.path.basename(psd_file_path).replace('.psd', '.png').replace('.PSD', '.png')
+                        output_png_path = os.path.join(default_output_dir, output_png_filename)
+
+                        logger.info(f"Processing PSD '{psd_file_path}' (no locale) -> '{output_png_path}'")
+                        if psd_processor.process_psd(psd_file_path, output_png_path): # No locale passed
+                            psd_files_processed_count += 1
+                        else:
+                            logger.error(f"Failed to process PSD '{psd_file_path}' (no locale)")
+            
+            if psd_files_processed_count > 0:
+                logger.info(f"Successfully processed {psd_files_processed_count} PSD file instances.")
+            else:
+                logger.info("No PSD files were processed (or found ending with .psd).")
+
+        except ImportError:
+            logger.error("PSDProcessor could not be initialized due to missing 'photoshop-python-api'. PSD processing will be skipped.")
+        except Exception as e:
+            logger.error(f"An error occurred during PSD processing setup or execution: {e}")
+
+    logger.info("All operations finished.")
 
 if __name__ == "__main__":
     main()
