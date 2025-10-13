@@ -12,11 +12,13 @@ from src.locale_handler import LocaleHandler
 from src.text_processor import TextProcessor
 from src.psd_processor import PSDProcessor # Added import
 from src.logger import setup_logger
+from src.filename_utils import extract_screenshot_number
 
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Crop screenshots based on JSON configuration.")
     parser.add_argument("--directory", required=True, help="Directory containing input folder and configuration file")
+    parser.add_argument("--screenshot", type=int, help="Process only the specified screenshot number (e.g., 7 for '7.png')")
     return parser.parse_args()
 
 def main():
@@ -27,8 +29,12 @@ def main():
     # Parse command line arguments
     args = parse_arguments()
     directory = args.directory
-    
-    logger.info(f"Starting screenshot cropper with directory: {directory}")
+    screenshot_filter = args.screenshot
+
+    if screenshot_filter is not None:
+        logger.info(f"Starting screenshot cropper with directory: {directory}, filtering screenshot: {screenshot_filter}")
+    else:
+        logger.info(f"Starting screenshot cropper with directory: {directory}")
     
     # Check if directory exists
     if not os.path.isdir(directory):
@@ -111,12 +117,13 @@ def main():
         logger.info("Proceeding with image processing (cropping, background, text).")
         try:
             image_processor = ImageProcessor(
-                input_dir, 
-                output_dir, 
-                crop_settings, 
-                background_settings, 
-                text_processor, 
-                locale_handler
+                input_dir,
+                output_dir,
+                crop_settings,
+                background_settings,
+                text_processor,
+                locale_handler,
+                screenshot_filter
             )
             processed_count = image_processor.process_images()
             logger.info(f"Successfully processed {processed_count} images for cropping/text.")
@@ -170,6 +177,13 @@ def main():
             psd_files_processed_count = 0
             for filename in os.listdir(psd_input_dir):
                 if filename.lower().endswith(".psd"):
+                    # Check if we should filter by screenshot number
+                    if screenshot_filter is not None:
+                        screenshot_num = extract_screenshot_number(filename)
+                        if screenshot_num != screenshot_filter:
+                            logger.debug(f"Skipping PSD file '{filename}' (filter: {screenshot_filter})")
+                            continue
+
                     psd_file_path = os.path.join(psd_input_dir, filename)
                     logger.info(f"Found PSD file for processing: {psd_file_path}")
 

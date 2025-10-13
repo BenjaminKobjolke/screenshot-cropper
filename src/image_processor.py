@@ -7,16 +7,17 @@ import os.path
 from PIL import Image
 from src.psd_processor import PSDProcessor
 from src.image_compositor import ImageCompositor
+from src.filename_utils import extract_screenshot_number
 
 logger = logging.getLogger("screenshot_cropper")
 
 class ImageProcessor:
     """Handler for image processing operations."""
     
-    def __init__(self, input_dir, output_dir, crop_settings, background_settings=None, text_processor=None, locale_handler=None):
+    def __init__(self, input_dir, output_dir, crop_settings, background_settings=None, text_processor=None, locale_handler=None, screenshot_filter=None):
         """
         Initialize the ImageProcessor.
-        
+
         Args:
             input_dir (str): Directory containing input images.
             output_dir (str): Directory to save processed images.
@@ -24,6 +25,7 @@ class ImageProcessor:
             background_settings (BackgroundSettings, optional): Background settings to apply.
             text_processor (TextProcessor, optional): Processor for text operations.
             locale_handler (LocaleHandler, optional): Handler for locale texts.
+            screenshot_filter (int, optional): Only process screenshot with this number.
         """
         self.input_dir = input_dir
         self.output_dir = output_dir
@@ -31,6 +33,7 @@ class ImageProcessor:
         self.background_settings = background_settings
         self.text_processor = text_processor
         self.locale_handler = locale_handler
+        self.screenshot_filter = screenshot_filter
         self.supported_extensions = ('.png', '.jpg', '.jpeg', '.psd')
         
         # Get text settings from text processor if available
@@ -66,16 +69,16 @@ class ImageProcessor:
             if locales:
                 logger.info(f"Processing images for {len(locales)} locales: {', '.join(locales)}")
                 for i, image_file in enumerate(image_files):
-                    # Extract filename without extension and check if it's a valid integer
+                    # Extract screenshot number from filename
                     filename = os.path.basename(image_file)
-                    name, _ = os.path.splitext(filename)
-                    
-                    # Use filename as index if it's a valid integer, otherwise use iteration index
-                    text_index = int(name) if name.isdigit() else i
-                    
+                    screenshot_num = extract_screenshot_number(filename)
+
+                    # Use extracted number as index if found, otherwise use iteration index
+                    text_index = screenshot_num if screenshot_num is not None else i
+
                     # Determine whether to add one to the index when getting text
-                    # If using filename as index, don't add one
-                    add_one = not name.isdigit()
+                    # If using filename number, don't add one
+                    add_one = screenshot_num is None
                     
                     for locale in locales:
                         logger.info(f"Processing image {filename} (index: {text_index}, add_one: {add_one}) for locale {locale}")
@@ -108,19 +111,27 @@ class ImageProcessor:
     def _get_image_files(self):
         """
         Get list of image files in the input directory.
-        
+
         Returns:
             list: List of image file paths.
         """
         image_files = []
-        
+
         for filename in os.listdir(self.input_dir):
             file_path = os.path.join(self.input_dir, filename)
-            
+
             # Check if it's a file and has a supported extension
             if os.path.isfile(file_path) and filename.lower().endswith(self.supported_extensions):
-                image_files.append(file_path)
-        
+                # If screenshot filter is set, only include files with matching number
+                if self.screenshot_filter is not None:
+                    screenshot_num = extract_screenshot_number(filename)
+                    if screenshot_num == self.screenshot_filter:
+                        image_files.append(file_path)
+                    else:
+                        logger.debug(f"Skipping file '{filename}' (filter: {self.screenshot_filter})")
+                else:
+                    image_files.append(file_path)
+
         return image_files
     
     def _process_image(self, image_path, locale=None, text=None):

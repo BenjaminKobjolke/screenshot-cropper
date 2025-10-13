@@ -54,6 +54,21 @@ A Python application to crop screenshots based on JSON configuration.
     python main.py --directory path/to/your/directory
     ```
 
+    **Optional: Process a specific screenshot only**
+
+    To process only a single screenshot by its number, use the `--screenshot` argument:
+
+    ```
+    python main.py --directory path/to/your/directory --screenshot 7
+    ```
+
+    This will only process files with the number 7 in their filename, such as:
+    - `7.png`
+    - `screenshot_07.psd`
+    - `screenshot_7.jpg`
+
+    This is useful when you need to quickly update a single screenshot without reprocessing all files.
+
 3. Cropped images will be saved in an `output` subdirectory.
 
 ## Configuration (`screenshot-cropper.json`)
