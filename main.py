@@ -19,6 +19,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Crop screenshots based on JSON configuration.")
     parser.add_argument("--directory", required=True, help="Directory containing input folder and configuration file")
     parser.add_argument("--screenshot", type=int, help="Process only the specified screenshot number (e.g., 7 for '7.png')")
+    parser.add_argument("--prepare-and-export", action="store_true", help="Prepare PSD by renaming text layers and export template.json (requires --screenshot)")
     return parser.parse_args()
 
 def main():
@@ -30,11 +31,20 @@ def main():
     args = parse_arguments()
     directory = args.directory
     screenshot_filter = args.screenshot
+    prepare_and_export = args.prepare_and_export
+
+    # Validate arguments
+    if prepare_and_export and screenshot_filter is None:
+        logger.error("--prepare-and-export requires --screenshot to be specified")
+        sys.exit(1)
 
     if screenshot_filter is not None:
         logger.info(f"Starting screenshot cropper with directory: {directory}, filtering screenshot: {screenshot_filter}")
     else:
         logger.info(f"Starting screenshot cropper with directory: {directory}")
+
+    if prepare_and_export:
+        logger.info("Prepare and export mode enabled")
     
     # Check if directory exists
     if not os.path.isdir(directory):
@@ -46,7 +56,46 @@ def main():
     if not os.path.isdir(input_dir):
         logger.error(f"Input directory '{input_dir}' does not exist")
         sys.exit(1)
-    
+
+    # Handle prepare-and-export mode
+    if prepare_and_export:
+        logger.info("Running in prepare-and-export mode")
+
+        # Find the PSD file matching the screenshot filter
+        psd_file = None
+        for filename in os.listdir(input_dir):
+            if filename.lower().endswith(".psd"):
+                screenshot_num = extract_screenshot_number(filename)
+                if screenshot_num == screenshot_filter:
+                    psd_file = os.path.join(input_dir, filename)
+                    break
+
+        if not psd_file:
+            logger.error(f"No PSD file found matching screenshot number: {screenshot_filter}")
+            sys.exit(1)
+
+        logger.info(f"Found PSD file: {psd_file}")
+
+        # Create output directory
+        output_dir = os.path.join(directory, "output")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            logger.info(f"Created output directory: {output_dir}")
+
+        # Set output path for template.json
+        output_json_path = os.path.join(output_dir, "template.json")
+
+        # Initialize PSD processor and run prepare and export
+        psd_processor = PSDProcessor()
+        success = psd_processor.prepare_and_export_template(psd_file, output_json_path)
+
+        if success:
+            logger.info("Successfully prepared PSD and exported template")
+            sys.exit(0)
+        else:
+            logger.error("Failed to prepare PSD and export template")
+            sys.exit(1)
+
     # Initialize settings to None
     crop_settings = None
     background_settings = None

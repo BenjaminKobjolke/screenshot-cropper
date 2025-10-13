@@ -69,6 +69,31 @@ A Python application to crop screenshots based on JSON configuration.
 
     This is useful when you need to quickly update a single screenshot without reprocessing all files.
 
+    **Optional: Prepare PSD and export template**
+
+    To prepare a PSD file for localization by renaming text layers and exporting a template, use both `--screenshot` and `--prepare-and-export`:
+
+    ```
+    python main.py --directory path/to/your/directory --screenshot 5 --prepare-and-export
+    ```
+
+    This mode will:
+    1. Open the PSD file matching the screenshot number (e.g., `screenshot_05.psd`)
+    2. Traverse all text layers in the document (including nested groups)
+    3. Rename each text layer to `lang_[sanitized_name]` format where:
+       - Original layer name is converted to lowercase
+       - Spaces are replaced with underscores
+       - Only a-z and underscore characters are kept
+       - Name is limited to 30 characters
+    4. Export/update `output/template.json` with the sanitized names as keys and current text content as values
+    5. Save the modified PSD file
+
+    If `template.json` already exists, it will be updated with the new keys (existing keys are preserved or updated if they match).
+
+    Example:
+    - A text layer named "Share Video Link!" becomes `lang_share_video_link` in the PSD
+    - The template.json entry: `"share_video_link": "Share Video Link!"`
+
 3. Cropped images will be saved in an `output` subdirectory.
 
 ## Configuration (`screenshot-cropper.json`)

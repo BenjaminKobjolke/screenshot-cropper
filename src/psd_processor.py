@@ -4,6 +4,7 @@ PSD processor module for the Screenshot Cropper application.
 import logging
 import os
 import json
+import re
 
 logger = logging.getLogger("screenshot_cropper")
 
@@ -442,3 +443,244 @@ class PSDProcessor:
         
         logger.warning(f"Translation not found for key '{key}' in locale '{locale}'")
         return None
+
+    def _sanitize_layer_name(self, name):
+        """
+        Sanitize a layer name for use as a translation key.
+
+        Rules:
+        - Convert to lowercase
+        - Replace spaces with underscores
+        - Keep only a-z and underscore characters
+        - Limit to 30 characters, truncating at word boundaries when possible
+
+        Args:
+            name (str): Original layer name.
+
+        Returns:
+            str: Sanitized layer name.
+        """
+        # Convert to lowercase
+        sanitized = name.lower()
+
+        # Replace spaces with underscores
+        sanitized = sanitized.replace(' ', '_')
+
+        # Keep only a-z and underscore
+        sanitized = re.sub(r'[^a-z_]', '', sanitized)
+
+        # Limit to 30 characters, truncating at word boundaries
+        if len(sanitized) > 30:
+            # Find the last underscore within the 30-character limit
+            truncated = sanitized[:30]
+            last_underscore = truncated.rfind('_')
+
+            if last_underscore > 0:
+                # Truncate at the last underscore to end on a complete word
+                sanitized = sanitized[:last_underscore]
+            else:
+                # No underscore found, use hard truncation
+                sanitized = truncated
+
+        return sanitized
+
+    def prepare_and_export_template(self, psd_path, output_json_path):
+        """
+        Prepare a PSD file by renaming all text layers and exporting a template.
+
+        This method:
+        1. Loads existing template.json if it exists
+        2. Opens the PSD file
+        3. Traverses all text layers
+        4. Renames each to lang_[sanitized_name]
+        5. Exports/updates template.json with layer text content
+        6. Saves the modified PSD file
+
+        Args:
+            psd_path (str): Path to the PSD file.
+            output_json_path (str): Path to save the template JSON file.
+
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            logger.info(f"Preparing PSD and exporting template: {psd_path}")
+
+            # Load existing template if it exists
+            template = {}
+            if os.path.exists(output_json_path):
+                try:
+                    with open(output_json_path, 'r', encoding='utf-8') as f:
+                        template = json.load(f)
+                    logger.info(f"Loaded existing template with {len(template)} keys")
+                except Exception as load_error:
+                    logger.warning(f"Could not load existing template: {load_error}")
+
+            # Get absolute paths
+            abs_psd_path = os.path.abspath(psd_path)
+            abs_output_path = os.path.abspath(output_json_path)
+
+            logger.info(f"Absolute PSD path: {abs_psd_path}")
+            logger.info(f"Absolute template output path: {abs_output_path}")
+
+            # Use Photoshop Python API with Session
+            from photoshop import Session
+            import time
+
+            with Session() as ps:
+                ps_version = ps.app.version
+                logger.info(f"Photoshop version: {ps_version}")
+
+                # Close any open documents first
+                logger.info("Closing any open documents in Photoshop")
+                try:
+                    while ps.app.documents.length > 0:
+                        ps.active_document.close(ps.SaveOptions.DoNotSaveChanges)
+                except Exception as close_error:
+                    logger.warning(f"Error closing documents: {close_error}")
+
+                # Open the PSD file
+                logger.info(f"Opening PSD file: {abs_psd_path}")
+                os.startfile(abs_psd_path)
+
+                # Wait for the document to be loaded
+                max_wait_time = 30  # seconds
+                wait_start = time.time()
+
+                logger.info("Waiting for document to open...")
+                while True:
+                    try:
+                        doc_count = ps.app.documents.length
+                        if doc_count >= 1:
+                            break
+                        if time.time() - wait_start > max_wait_time:
+                            raise TimeoutError(f"Timed out waiting for Photoshop to open {abs_psd_path}")
+                        time.sleep(1)
+                    except Exception as wait_error:
+                        if time.time() - wait_start > max_wait_time:
+                            raise TimeoutError(f"Timed out waiting for Photoshop to open {abs_psd_path}")
+                        time.sleep(1)
+
+                # Get the active document
+                doc = ps.active_document
+                logger.info(f"Successfully opened PSD file in Photoshop: {abs_psd_path}")
+
+                # Process all text layers
+                self._prepare_layers(ps, doc, template)
+
+                # Save the template JSON
+                output_dir = os.path.dirname(abs_output_path)
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
+
+                with open(abs_output_path, 'w', encoding='utf-8') as f:
+                    json.dump(template, f, indent=4, ensure_ascii=False, sort_keys=True)
+                logger.info(f"Exported template with {len(template)} keys to: {abs_output_path}")
+
+                # Save the modified PSD file
+                logger.info(f"Saving modified PSD file: {abs_psd_path}")
+                doc.save()
+                logger.info("PSD file saved successfully")
+
+                # Close the document
+                logger.info("Closing document")
+                doc.close(ps.SaveOptions.DoNotSaveChanges)
+
+            return True
+
+        except ImportError as import_error:
+            logger.error(f"Photoshop Python API not available: {import_error}")
+            logger.error("This feature requires Photoshop and photoshop-python-api")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error preparing PSD file {psd_path}: {e}")
+            return False
+
+    def _prepare_layers(self, ps, doc, template):
+        """
+        Traverse all layers, rename text layers, and populate template.
+
+        Args:
+            ps: Photoshop session object.
+            doc: Photoshop document object.
+            template (dict): Template dictionary to populate.
+        """
+        logger.info("Processing all text layers for template preparation")
+
+        # Process art layers
+        try:
+            for layer in doc.artLayers:
+                self._process_text_layer_for_template(ps, layer, template)
+        except Exception as art_error:
+            logger.warning(f"Error processing art layers: {art_error}")
+
+        # Process layer sets (groups)
+        try:
+            if hasattr(doc, 'layerSets'):
+                for layer_set in doc.layerSets:
+                    self._prepare_layer_set(ps, layer_set, template)
+        except Exception as sets_error:
+            logger.warning(f"Error processing layer sets: {sets_error}")
+
+    def _prepare_layer_set(self, ps, layer_set, template):
+        """
+        Process a layer set (group) recursively for template preparation.
+
+        Args:
+            ps: Photoshop session object.
+            layer_set: Photoshop layer set object.
+            template (dict): Template dictionary to populate.
+        """
+        logger.info(f"Processing layer set: {layer_set.name if hasattr(layer_set, 'name') else 'unknown'}")
+
+        # Process art layers in this group
+        try:
+            if hasattr(layer_set, 'artLayers'):
+                for layer in layer_set.artLayers:
+                    self._process_text_layer_for_template(ps, layer, template)
+        except Exception as art_error:
+            logger.warning(f"Error processing art layers in group: {art_error}")
+
+        # Process nested layer groups
+        try:
+            if hasattr(layer_set, 'layerSets'):
+                for nested_layer_set in layer_set.layerSets:
+                    self._prepare_layer_set(ps, nested_layer_set, template)
+        except Exception as sets_error:
+            logger.warning(f"Error processing nested layer sets: {sets_error}")
+
+    def _process_text_layer_for_template(self, ps, layer, template):
+        """
+        Process a single text layer: rename it and add to template.
+
+        Args:
+            ps: Photoshop session object.
+            layer: Photoshop layer object.
+            template (dict): Template dictionary to populate.
+        """
+        try:
+            # Check if it's a text layer
+            if hasattr(layer, 'kind') and layer.kind == ps.LayerKind.TextLayer:
+                original_name = layer.name
+                logger.info(f"Found text layer: {original_name}")
+
+                # Get current text content
+                text_content = layer.textItem.contents if hasattr(layer, 'textItem') else ""
+
+                # Sanitize the layer name
+                sanitized_name = self._sanitize_layer_name(original_name)
+
+                # Create new layer name
+                new_layer_name = f"lang_{sanitized_name}"
+
+                # Rename the layer
+                layer.name = new_layer_name
+                logger.info(f"Renamed layer '{original_name}' to '{new_layer_name}'")
+
+                # Add/update in template
+                template[sanitized_name] = text_content
+                logger.info(f"Added to template: {sanitized_name} = '{text_content}'")
+
+        except Exception as layer_error:
+            logger.warning(f"Error processing text layer: {layer_error}")
