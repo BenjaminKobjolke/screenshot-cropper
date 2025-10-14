@@ -69,6 +69,33 @@ A Python application to crop screenshots based on JSON configuration.
 
     This is useful when you need to quickly update a single screenshot without reprocessing all files.
 
+    **Optional: Process a specific language only**
+
+    To process only a single language, use the `--language` argument:
+
+    ```
+    python main.py --directory path/to/your/directory --language ar
+    ```
+
+    This will only process the Arabic (ar) locale, skipping all other languages.
+
+    **Optional: Skip existing output files**
+
+    To skip processing for languages where output files already exist, use the `--skip-existing` flag:
+
+    ```
+    python main.py --directory path/to/your/directory --skip-existing
+    ```
+
+    This is useful for incremental processing:
+    - Only processes screenshots for languages where output files don't exist yet
+    - Significantly speeds up iteration when only some languages have changed
+    - For PSD files, if all languages are skipped, Photoshop won't be opened at all
+    - Can be combined with other flags:
+      ```
+      python main.py --directory path/to/your/directory --screenshot 5 --skip-existing
+      ```
+
     **Optional: Prepare PSD and export template**
 
     To prepare a PSD file for localization by renaming text layers and exporting a template, use both `--screenshot` and `--prepare-and-export`:
