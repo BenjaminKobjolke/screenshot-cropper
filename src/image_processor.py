@@ -53,33 +53,50 @@ class ImageProcessor:
     def process_images(self):
         """
         Process all images in the input directory.
-        
+
         Returns:
             int: Number of successfully processed images.
         """
         processed_count = 0
-        
+
         # Get list of image files
         image_files = self._get_image_files()
         logger.info(f"Found {len(image_files)} image files to process")
-        
+
+        # Separate PSD files from regular images
+        psd_files = [f for f in image_files if f.lower().endswith('.psd')]
+        regular_files = [f for f in image_files if not f.lower().endswith('.psd')]
+
+        if psd_files:
+            logger.info(f"Found {len(psd_files)} PSD files and {len(regular_files)} regular image files")
+
         # If we have locales and text processor, process each image for each locale
         if self.locale_handler and self.text_processor:
             locales = self.locale_handler.get_locales()
             if locales:
                 logger.info(f"Processing images for {len(locales)} locales: {', '.join(locales)}")
-                for i, image_file in enumerate(image_files):
-                    # Extract screenshot number from filename
+
+                # Process PSD files efficiently (all locales at once per PSD)
+                for i, psd_file in enumerate(psd_files):
+                    filename = os.path.basename(psd_file)
+                    screenshot_num = extract_screenshot_number(filename)
+                    text_index = screenshot_num if screenshot_num is not None else i
+                    add_one = screenshot_num is None
+
+                    logger.info(f"Processing PSD file {filename} (index: {text_index}, add_one: {add_one}) for all locales")
+                    try:
+                        count = self._process_psd_for_all_locales(psd_file, locales, text_index, add_one)
+                        processed_count += count
+                    except Exception as e:
+                        logger.error(f"Failed to process PSD file {psd_file} for all locales: {e}")
+
+                # Process regular image files (one locale at a time)
+                for i, image_file in enumerate(regular_files):
                     filename = os.path.basename(image_file)
                     screenshot_num = extract_screenshot_number(filename)
-
-                    # Use extracted number as index if found, otherwise use iteration index
-                    text_index = screenshot_num if screenshot_num is not None else i
-
-                    # Determine whether to add one to the index when getting text
-                    # If using filename number, don't add one
+                    text_index = screenshot_num if screenshot_num is not None else i + len(psd_files)
                     add_one = screenshot_num is None
-                    
+
                     for locale in locales:
                         logger.info(f"Processing image {filename} (index: {text_index}, add_one: {add_one}) for locale {locale}")
                         text = self.locale_handler.get_text(locale, text_index, add_one=add_one)
@@ -105,7 +122,7 @@ class ImageProcessor:
                     processed_count += 1
                 except Exception as e:
                     logger.error(f"Failed to process image {image_file}: {e}")
-        
+
         return processed_count
     
     def _get_image_files(self):
@@ -133,7 +150,102 @@ class ImageProcessor:
                     image_files.append(file_path)
 
         return image_files
-    
+
+    def _process_psd_for_all_locales(self, psd_path, locales, text_index, add_one=False):
+        """
+        Process a PSD file for all locales efficiently by opening it once.
+
+        Args:
+            psd_path (str): Path to the PSD file.
+            locales (list): List of locale codes to process.
+            text_index (int): Index to use when getting text from locale handler.
+            add_one (bool): Whether to add one to the index when getting text.
+
+        Returns:
+            int: Number of successfully processed locale outputs.
+
+        Raises:
+            Exception: If PSD processing fails completely.
+        """
+        logger.info(f"Processing PSD file for {len(locales)} locales: {os.path.basename(psd_path)}")
+
+        filename = os.path.basename(psd_path)
+        name, _ = os.path.splitext(filename)
+
+        # Build dictionary of final output paths for all locales
+        # Export directly to final filenames (no temp files needed)
+        output_paths_by_locale = {}
+        for locale in locales:
+            locale_output_dir = os.path.join(self.output_dir, locale)
+            if not os.path.exists(locale_output_dir):
+                os.makedirs(locale_output_dir)
+                logger.info(f"Created locale-specific output directory: {locale_output_dir}")
+
+            output_filename = f"{name}_{locale}.png"
+            output_path = os.path.join(locale_output_dir, output_filename)
+            output_paths_by_locale[locale] = output_path
+
+        # Process PSD for all locales efficiently (opens file once, exports to final names)
+        try:
+            results = self.psd_processor.process_psd_for_multiple_locales(psd_path, output_paths_by_locale)
+        except Exception as e:
+            logger.error(f"Failed to process PSD file {psd_path}: {e}")
+            raise
+
+        # Now apply compositor processing to each exported PNG (in-place)
+        success_count = 0
+        for locale in locales:
+            if not results.get(locale, False):
+                logger.error(f"PSD processing failed for locale {locale}")
+                continue
+
+            output_path = output_paths_by_locale[locale]
+
+            # Verify the file was created
+            if not os.path.exists(output_path):
+                logger.error(f"PSD output not found for locale {locale}: {output_path}")
+                continue
+
+            # Get text for this locale
+            text = self.locale_handler.get_text(locale, text_index, add_one=add_one)
+
+            # Apply compositor processing (crop, background, text overlay)
+            # Process in-place: read from output_path, write back to output_path
+            try:
+                logger.info(f"Applying compositor to PSD output for locale {locale}: {output_path}")
+
+                # Create a temporary file for compositor processing
+                temp_compositor_path = output_path.replace('.png', '_comp_temp.png')
+
+                compositor_success = self.image_compositor.process_image(output_path, temp_compositor_path, text, locale)
+
+                if compositor_success:
+                    # Replace original with composited version
+                    os.replace(temp_compositor_path, output_path)
+                    logger.info(f"Successfully processed PSD with compositor for locale {locale}")
+                    success_count += 1
+                else:
+                    logger.warning(f"Compositor failed for locale {locale}, keeping PSD output as-is")
+                    # Remove temp file if it exists
+                    if os.path.exists(temp_compositor_path):
+                        os.remove(temp_compositor_path)
+                    success_count += 1
+
+            except Exception as compositor_error:
+                logger.error(f"Error applying compositor for locale {locale}: {compositor_error}")
+                # Keep the original PSD output
+                logger.info(f"Keeping unprocessed PSD output for locale {locale}")
+                # Clean up temp file if it exists
+                if os.path.exists(temp_compositor_path):
+                    try:
+                        os.remove(temp_compositor_path)
+                    except:
+                        pass
+                success_count += 1
+
+        logger.info(f"Successfully processed PSD for {success_count}/{len(locales)} locales")
+        return success_count
+
     def _process_image(self, image_path, locale=None, text=None):
         """
         Process a single image.

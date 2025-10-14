@@ -25,177 +25,347 @@ class PSDProcessor:
     def process_psd(self, psd_path, output_path, locale=None):
         """
         Process a PSD file, translate text layers, and save as PNG.
-        
+
+        This method opens the file, processes it for a single locale, and closes it.
+        For processing multiple locales efficiently, use process_psd_for_multiple_locales instead.
+
         Args:
             psd_path (str): Path to the PSD file.
             output_path (str): Path to save the output PNG file.
             locale (str, optional): Locale code for text translation.
-            
+
         Returns:
             bool: True if processing was successful, False otherwise.
         """
         try:
             logger.info(f"Processing PSD file: {psd_path}")
-            
+
             # Check if the PSD file exists
             if not os.path.isfile(psd_path):
                 raise FileNotFoundError(f"PSD file not found: {psd_path}")
-            
+
             # Get absolute paths
             abs_psd_path = os.path.abspath(psd_path)
             abs_output_path = os.path.abspath(output_path)
-            
+
             logger.info(f"Absolute PSD path: {abs_psd_path}")
             logger.info(f"Absolute output path: {abs_output_path}")
-            
+
             # Try to use Photoshop Python API with Session
             from photoshop import Session
-            import time
-            
+
             try:
                 # Check if Photoshop is installed and accessible
                 logger.info("Checking Photoshop installation...")
                 with Session() as ps:
                     ps_version = ps.app.version
                     logger.info(f"Photoshop version: {ps_version}")
-                    
-                    # Close any open documents first
-                    logger.info("Closing any open documents in Photoshop")
+
+                    # Open the PSD file
+                    doc = self._open_psd_file(ps, abs_psd_path)
+
                     try:
-                        while ps.app.documents.length > 0:
-                            ps.active_document.close(ps.SaveOptions.DoNotSaveChanges)
-                    except Exception as close_error:
-                        logger.warning(f"Error closing documents: {close_error}")
-                    
-                    # Open the PSD file using system default application (Photoshop)
-                    logger.info(f"Opening PSD file with system default application: {abs_psd_path}")
-                    os.startfile(abs_psd_path)
-                    
-                    # Wait for the document to be loaded
-                    max_wait_time = 30  # seconds
-                    wait_start = time.time()
-                    
-                    logger.info("Waiting for document to open...")
-                    while True:
-                        try:
-                            doc_count = ps.app.documents.length
-                            logger.info(f"Documents open: {doc_count}")
-                            
-                            if doc_count >= 1:
-                                break
-                                
-                            if time.time() - wait_start > max_wait_time:
-                                raise TimeoutError(f"Timed out waiting for Photoshop to open {abs_psd_path}")
-                                
-                            time.sleep(1)
-                        except Exception as wait_error:
-                            logger.error(f"Error while waiting for document: {wait_error}")
-                            if time.time() - wait_start > max_wait_time:
-                                raise TimeoutError(f"Timed out waiting for Photoshop to open {abs_psd_path}")
-                            time.sleep(1)
-                    
-                    # Get the active document
-                    try:
-                        doc = ps.active_document
-                        logger.info(f"Successfully opened PSD file in Photoshop: {abs_psd_path}")
-                        
-                        # List all layers for debugging
-                        logger.info("Listing all layers in the document:")
-                        try:
-                            for i, layer in enumerate(doc.artLayers):
-                                logger.info(f"Layer {i}: {layer.name}")
-                        except Exception as layer_error:
-                            logger.warning(f"Error listing layers: {layer_error}")
-                        
                         # Process text layers if locale handler is available
                         if self.locale_handler and locale:
                             self._translate_text_layers_with_session(ps, doc, locale)
-                        
-                        # Save as PNG
-                        output_dir = os.path.dirname(abs_output_path)
-                        if not os.path.exists(output_dir):
-                            os.makedirs(output_dir)
-                        
-                        # Use exportDocument with SaveForWeb for PNG export
-                        logger.info(f"Exporting PSD as PNG: {abs_output_path}")
-                        
-                        try:
-                            # Try using JavaScript to export
-                            output_path_js = abs_output_path.replace('\\', '\\\\')
-                            js_script = f'''
-                            var doc = app.activeDocument;
-                            var saveFile = new File("{output_path_js}");
-                            var saveOptions = new ExportOptionsSaveForWeb();
-                            saveOptions.format = SaveDocumentType.PNG;
-                            saveOptions.PNG8 = false;
-                            saveOptions.transparency = true;
-                            saveOptions.quality = 100;
-                            doc.exportDocument(saveFile, ExportType.SAVEFORWEB, saveOptions);
-                            '''
-                            ps.app.doJavaScript(js_script)
-                            logger.info(f"Saved PSD as PNG using Photoshop JavaScript: {abs_output_path}")
-                        except Exception as export_error:
-                            logger.error(f"Error exporting with JavaScript: {export_error}")
-                            
-                            # Try alternative export method
-                            try:
-                                options = ps.ExportOptionsSaveForWeb()
-                                options.format = ps.SaveDocumentType.PNG
-                                options.PNG8 = False
-                                options.transparency = True
-                                options.quality = 100
-                                
-                                doc.exportDocument(abs_output_path, exportAs=ps.ExportType.SaveForWeb, options=options)
-                                logger.info(f"Saved PSD as PNG using Photoshop API: {abs_output_path}")
-                            except Exception as alt_export_error:
-                                logger.error(f"Error with alternative export: {alt_export_error}")
-                                
-                                # Last resort: save as PSD then convert with PIL
-                                try:
-                                    temp_psd = abs_output_path.replace('.png', '_temp.psd')
-                                    doc.saveAs(temp_psd)
-                                    logger.info(f"Saved temporary PSD: {temp_psd}")
-                                    
-                                    from PIL import Image
-                                    with Image.open(temp_psd) as img:
-                                        img.save(abs_output_path)
-                                    
-                                    os.remove(temp_psd)
-                                    logger.info(f"Converted PSD to PNG using PIL: {abs_output_path}")
-                                except Exception as pil_error:
-                                    logger.error(f"Error with PIL conversion: {pil_error}")
-                                    raise
-                        
-                        # Close all documents when done
-                        logger.info("Closing all documents in Photoshop")
-                        try:
-                            while ps.app.documents.length > 0:
-                                ps.active_document.close(ps.SaveOptions.DoNotSaveChanges)
-                        except Exception as final_close_error:
-                            logger.warning(f"Error closing documents at end: {final_close_error}")
-                    
-                    except Exception as doc_error:
-                        logger.error(f"Error working with document: {doc_error}")
-                        raise
-            
+
+                        # Export as PNG
+                        self._export_as_png(ps, doc, abs_output_path)
+
+                    finally:
+                        # Close the document
+                        self._close_document(ps, doc)
+
             except Exception as session_error:
                 logger.error(f"Error in Photoshop session: {session_error}")
                 raise
-            
+
             return True
-            
+
         except ImportError as import_error:
             logger.error(f"Photoshop Python API not available: {import_error}")
             logger.error("PSD processing requires Photoshop and photoshop-python-api")
             import sys
             sys.exit(1)
-            
+
         except Exception as e:
             logger.error(f"Error processing PSD file {psd_path}: Please check if you have Photoshop installed correctly.")
             logger.error(f"Detailed error: {str(e)}")
             logger.error("Exiting application due to Photoshop error")
             import sys
             sys.exit(1)
+
+    def process_psd_for_multiple_locales(self, psd_path, output_paths_by_locale):
+        """
+        Process a PSD file for multiple locales efficiently by opening the file once.
+
+        Args:
+            psd_path (str): Path to the PSD file.
+            output_paths_by_locale (dict): Dictionary mapping locale codes to output PNG paths.
+                                          Format: {locale: output_path}
+
+        Returns:
+            dict: Dictionary mapping locale codes to success status (True/False).
+        """
+        try:
+            logger.info(f"Processing PSD file for multiple locales: {psd_path}")
+            logger.info(f"Locales to process: {', '.join(output_paths_by_locale.keys())}")
+
+            # Check if the PSD file exists
+            if not os.path.isfile(psd_path):
+                raise FileNotFoundError(f"PSD file not found: {psd_path}")
+
+            # Get absolute path
+            abs_psd_path = os.path.abspath(psd_path)
+            logger.info(f"Absolute PSD path: {abs_psd_path}")
+
+            # Try to use Photoshop Python API with Session
+            from photoshop import Session
+
+            results = {}
+
+            try:
+                # Check if Photoshop is installed and accessible
+                logger.info("Checking Photoshop installation...")
+                with Session() as ps:
+                    ps_version = ps.app.version
+                    logger.info(f"Photoshop version: {ps_version}")
+
+                    # Open the PSD file once
+                    doc = self._open_psd_file(ps, abs_psd_path)
+
+                    try:
+                        # Store the initial history state so we can revert after each locale
+                        logger.info("Saving initial document state")
+                        try:
+                            # Create a history snapshot using JavaScript
+                            js_script = '''
+                            var doc = app.activeDocument;
+                            var initialState = doc.activeHistoryState;
+                            initialState;
+                            '''
+                            ps.app.doJavaScript(js_script)
+                        except Exception as history_error:
+                            logger.warning(f"Could not create history snapshot: {history_error}")
+
+                        # Process each locale
+                        for locale, output_path in output_paths_by_locale.items():
+                            logger.info(f"Processing locale: {locale}")
+                            abs_output_path = os.path.abspath(output_path)
+
+                            try:
+                                # Translate text layers for this locale
+                                if self.locale_handler and locale:
+                                    self._translate_text_layers_with_session(ps, doc, locale)
+
+                                # Export as PNG
+                                self._export_as_png(ps, doc, abs_output_path)
+
+                                results[locale] = True
+                                logger.info(f"Successfully processed locale: {locale}")
+
+                                # Revert document to original state for next locale
+                                # Use undo to revert all text layer changes
+                                try:
+                                    logger.info("Reverting document to original state for next locale")
+                                    # Count how many text layers were modified and undo that many times
+                                    # Use JavaScript to revert to the initial history state
+                                    js_revert = '''
+                                    var doc = app.activeDocument;
+                                    // Revert to the first history state (after opening)
+                                    var states = doc.historyStates;
+                                    if (states.length > 1) {
+                                        doc.activeHistoryState = states[1];
+                                    }
+                                    '''
+                                    ps.app.doJavaScript(js_revert)
+                                    logger.info("Document reverted to original state")
+                                except Exception as revert_error:
+                                    logger.warning(f"Could not revert document state: {revert_error}")
+                                    logger.warning("Next locale may have incorrect text if revert failed")
+
+                            except Exception as locale_error:
+                                logger.error(f"Error processing locale {locale}: {locale_error}")
+                                results[locale] = False
+
+                                # Try to revert even if there was an error
+                                try:
+                                    js_revert = '''
+                                    var doc = app.activeDocument;
+                                    var states = doc.historyStates;
+                                    if (states.length > 1) {
+                                        doc.activeHistoryState = states[1];
+                                    }
+                                    '''
+                                    ps.app.doJavaScript(js_revert)
+                                except:
+                                    pass
+
+                    finally:
+                        # Close the document once at the end
+                        self._close_document(ps, doc)
+
+            except Exception as session_error:
+                logger.error(f"Error in Photoshop session: {session_error}")
+                # Mark all locales as failed if we couldn't complete the session
+                for locale in output_paths_by_locale.keys():
+                    if locale not in results:
+                        results[locale] = False
+
+            return results
+
+        except ImportError as import_error:
+            logger.error(f"Photoshop Python API not available: {import_error}")
+            logger.error("PSD processing requires Photoshop and photoshop-python-api")
+            import sys
+            sys.exit(1)
+
+        except Exception as e:
+            logger.error(f"Error processing PSD file {psd_path}: Please check if you have Photoshop installed correctly.")
+            logger.error(f"Detailed error: {str(e)}")
+            logger.error("Exiting application due to Photoshop error")
+            import sys
+            sys.exit(1)
+
+    def _open_psd_file(self, ps, abs_psd_path):
+        """
+        Open a PSD file in Photoshop.
+
+        Args:
+            ps: Photoshop session object.
+            abs_psd_path (str): Absolute path to the PSD file.
+
+        Returns:
+            Photoshop document object.
+        """
+        import time
+
+        # Close any open documents first
+        logger.info("Closing any open documents in Photoshop")
+        try:
+            while ps.app.documents.length > 0:
+                ps.active_document.close(ps.SaveOptions.DoNotSaveChanges)
+        except Exception as close_error:
+            logger.warning(f"Error closing documents: {close_error}")
+
+        # Open the PSD file using system default application (Photoshop)
+        logger.info(f"Opening PSD file with system default application: {abs_psd_path}")
+        os.startfile(abs_psd_path)
+
+        # Wait for the document to be loaded
+        max_wait_time = 30  # seconds
+        wait_start = time.time()
+
+        logger.info("Waiting for document to open...")
+        while True:
+            try:
+                doc_count = ps.app.documents.length
+                logger.info(f"Documents open: {doc_count}")
+
+                if doc_count >= 1:
+                    break
+
+                if time.time() - wait_start > max_wait_time:
+                    raise TimeoutError(f"Timed out waiting for Photoshop to open {abs_psd_path}")
+
+                time.sleep(1)
+            except Exception as wait_error:
+                logger.error(f"Error while waiting for document: {wait_error}")
+                if time.time() - wait_start > max_wait_time:
+                    raise TimeoutError(f"Timed out waiting for Photoshop to open {abs_psd_path}")
+                time.sleep(1)
+
+        # Get the active document
+        doc = ps.active_document
+        logger.info(f"Successfully opened PSD file in Photoshop: {abs_psd_path}")
+
+        # List all layers for debugging
+        logger.info("Listing all layers in the document:")
+        try:
+            for i, layer in enumerate(doc.artLayers):
+                logger.info(f"Layer {i}: {layer.name}")
+        except Exception as layer_error:
+            logger.warning(f"Error listing layers: {layer_error}")
+
+        return doc
+
+    def _export_as_png(self, ps, doc, abs_output_path):
+        """
+        Export a Photoshop document as PNG.
+
+        Args:
+            ps: Photoshop session object.
+            doc: Photoshop document object.
+            abs_output_path (str): Absolute path to save the output PNG file.
+        """
+        # Create output directory if needed
+        output_dir = os.path.dirname(abs_output_path)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # Use exportDocument with SaveForWeb for PNG export
+        logger.info(f"Exporting PSD as PNG: {abs_output_path}")
+
+        try:
+            # Try using JavaScript to export
+            output_path_js = abs_output_path.replace('\\', '\\\\')
+            js_script = f'''
+            var doc = app.activeDocument;
+            var saveFile = new File("{output_path_js}");
+            var saveOptions = new ExportOptionsSaveForWeb();
+            saveOptions.format = SaveDocumentType.PNG;
+            saveOptions.PNG8 = false;
+            saveOptions.transparency = true;
+            saveOptions.quality = 100;
+            doc.exportDocument(saveFile, ExportType.SAVEFORWEB, saveOptions);
+            '''
+            ps.app.doJavaScript(js_script)
+            logger.info(f"Saved PSD as PNG using Photoshop JavaScript: {abs_output_path}")
+        except Exception as export_error:
+            logger.error(f"Error exporting with JavaScript: {export_error}")
+
+            # Try alternative export method
+            try:
+                options = ps.ExportOptionsSaveForWeb()
+                options.format = ps.SaveDocumentType.PNG
+                options.PNG8 = False
+                options.transparency = True
+                options.quality = 100
+
+                doc.exportDocument(abs_output_path, exportAs=ps.ExportType.SaveForWeb, options=options)
+                logger.info(f"Saved PSD as PNG using Photoshop API: {abs_output_path}")
+            except Exception as alt_export_error:
+                logger.error(f"Error with alternative export: {alt_export_error}")
+
+                # Last resort: save as PSD then convert with PIL
+                try:
+                    temp_psd = abs_output_path.replace('.png', '_temp.psd')
+                    doc.saveAs(temp_psd)
+                    logger.info(f"Saved temporary PSD: {temp_psd}")
+
+                    from PIL import Image
+                    with Image.open(temp_psd) as img:
+                        img.save(abs_output_path)
+
+                    os.remove(temp_psd)
+                    logger.info(f"Converted PSD to PNG using PIL: {abs_output_path}")
+                except Exception as pil_error:
+                    logger.error(f"Error with PIL conversion: {pil_error}")
+                    raise
+
+    def _close_document(self, ps, doc):
+        """
+        Close a Photoshop document.
+
+        Args:
+            ps: Photoshop session object.
+            doc: Photoshop document object.
+        """
+        logger.info("Closing document in Photoshop")
+        try:
+            doc.close(ps.SaveOptions.DoNotSaveChanges)
+        except Exception as close_error:
+            logger.warning(f"Error closing document: {close_error}")
     
     def _translate_text_layers_with_session(self, ps, doc, locale):
         """

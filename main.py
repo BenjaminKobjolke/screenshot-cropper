@@ -19,6 +19,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Crop screenshots based on JSON configuration.")
     parser.add_argument("--directory", required=True, help="Directory containing input folder and configuration file")
     parser.add_argument("--screenshot", type=int, help="Process only the specified screenshot number (e.g., 7 for '7.png')")
+    parser.add_argument("--language", type=str, help="Process only the specified language (e.g., 'en', 'de')")
     parser.add_argument("--prepare-and-export", action="store_true", help="Prepare PSD by renaming text layers and export template.json (requires --screenshot)")
     return parser.parse_args()
 
@@ -31,6 +32,7 @@ def main():
     args = parse_arguments()
     directory = args.directory
     screenshot_filter = args.screenshot
+    language_filter = args.language
     prepare_and_export = args.prepare_and_export
 
     # Validate arguments
@@ -38,10 +40,13 @@ def main():
         logger.error("--prepare-and-export requires --screenshot to be specified")
         sys.exit(1)
 
+    # Build log message with filters
+    log_parts = [f"Starting screenshot cropper with directory: {directory}"]
     if screenshot_filter is not None:
-        logger.info(f"Starting screenshot cropper with directory: {directory}, filtering screenshot: {screenshot_filter}")
-    else:
-        logger.info(f"Starting screenshot cropper with directory: {directory}")
+        log_parts.append(f"filtering screenshot: {screenshot_filter}")
+    if language_filter is not None:
+        log_parts.append(f"filtering language: {language_filter}")
+    logger.info(", ".join(log_parts))
 
     if prepare_and_export:
         logger.info("Prepare and export mode enabled")
@@ -150,8 +155,11 @@ def main():
     if text_settings:
         locales_dir = os.path.join(directory, "input", "locales")
         if os.path.isdir(locales_dir):
-            locale_handler = LocaleHandler(locales_dir)
-            logger.info(f"Initialized locale handler with locales: {', '.join(locale_handler.get_locales())}")
+            locale_handler = LocaleHandler(locales_dir, language_filter)
+            if locale_handler.get_locales():
+                logger.info(f"Initialized locale handler with locales: {', '.join(locale_handler.get_locales())}")
+            else:
+                logger.warning(f"No locales loaded. Check language filter or locales directory.")
         else:
             logger.warning(f"Locales directory not found: {locales_dir}")
     
@@ -189,7 +197,7 @@ def main():
     psd_locales_dir = os.path.join(directory, "input", "locales")
     if os.path.isdir(psd_locales_dir):
         try:
-            psd_locale_handler = LocaleHandler(psd_locales_dir)
+            psd_locale_handler = LocaleHandler(psd_locales_dir, language_filter)
             if psd_locale_handler.get_locales():
                 logger.info(f"Initialized LocaleHandler for PSD processing with locales: {', '.join(psd_locale_handler.get_locales())}")
             else:
@@ -238,19 +246,29 @@ def main():
 
                     if psd_locale_handler and psd_locale_handler.get_locales():
                         logger.info(f"Processing PSD '{filename}' for locales: {', '.join(psd_locale_handler.get_locales())}")
+
+                        # Build dictionary of output paths for all locales
+                        output_paths_by_locale = {}
                         for loc in psd_locale_handler.get_locales():
                             # Output path is now output_dir / locale / filename.png
                             locale_specific_output_dir = os.path.join(output_dir, loc)
                             if not os.path.exists(locale_specific_output_dir):
                                 os.makedirs(locale_specific_output_dir)
                                 logger.info(f"Created PSD output directory for locale '{loc}': {locale_specific_output_dir}")
-                            
+
                             output_png_filename = os.path.basename(psd_file_path).replace('.psd', '.png').replace('.PSD', '.png')
                             output_png_path = os.path.join(locale_specific_output_dir, output_png_filename)
-                            
-                            logger.info(f"Processing PSD '{psd_file_path}' for locale '{loc}' -> '{output_png_path}'")
-                            if psd_processor.process_psd(psd_file_path, output_png_path, locale=loc):
+                            output_paths_by_locale[loc] = output_png_path
+
+                        # Process all locales efficiently in one pass
+                        logger.info(f"Processing PSD '{psd_file_path}' for all locales in one pass")
+                        results = psd_processor.process_psd_for_multiple_locales(psd_file_path, output_paths_by_locale)
+
+                        # Count successful processing
+                        for loc, success in results.items():
+                            if success:
                                 psd_files_processed_count += 1
+                                logger.info(f"Successfully processed PSD '{psd_file_path}' for locale '{loc}'")
                             else:
                                 logger.error(f"Failed to process PSD '{psd_file_path}' for locale '{loc}'")
                     else:

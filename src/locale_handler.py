@@ -9,49 +9,57 @@ logger = logging.getLogger("screenshot_cropper")
 
 class LocaleHandler:
     """Handler for locale files."""
-    
-    def __init__(self, locales_dir):
+
+    def __init__(self, locales_dir, language_filter=None):
         """
         Initialize the LocaleHandler.
-        
+
         Args:
             locales_dir (str): Directory containing locale files.
+            language_filter (str, optional): Only load this specific language.
         """
         self.locales_dir = locales_dir
+        self.language_filter = language_filter
         self.locales = self._load_locales()
     
     def _load_locales(self):
         """
         Load all locale files from the locales directory.
-        
+
         Returns:
             dict: Dictionary of locale codes to text dictionaries or arrays.
         """
         locales = {}
-        
+
         if not os.path.isdir(self.locales_dir):
             logger.warning(f"Locales directory not found: {self.locales_dir}")
             return locales
-            
+
         for filename in os.listdir(self.locales_dir):
             if filename.endswith('.json'):
                 locale_code = os.path.splitext(filename)[0]  # e.g., "en" from "en.json"
+
+                # If language filter is set, skip locales that don't match
+                if self.language_filter and locale_code != self.language_filter:
+                    logger.debug(f"Skipping locale {locale_code} (filter: {self.language_filter})")
+                    continue
+
                 locale_path = os.path.join(self.locales_dir, filename)
-                
+
                 try:
                     with open(locale_path, 'r', encoding='utf-8') as f:
                         locale_data = json.load(f)
-                        
+
                         # Store the data as-is, whether it's a dictionary or an array
                         locales[locale_code] = locale_data
-                        
+
                         if isinstance(locale_data, dict):
                             logger.info(f"Loaded locale: {locale_code} with {len(locale_data)} texts (dictionary format)")
                         else:
                             logger.info(f"Loaded locale: {locale_code} with {len(locale_data)} texts (array format)")
                 except Exception as e:
                     logger.error(f"Failed to load locale file {filename}: {e}")
-        
+
         return locales
     
     def get_locales(self):
