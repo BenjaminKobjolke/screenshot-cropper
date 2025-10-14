@@ -589,16 +589,28 @@ class PSDProcessor:
         
         # Handle dictionary format
         if isinstance(texts, dict):
-            # Try different key formats
-            if key in texts:
-                return texts[key]
-            if f"Text_{key}" in texts:
-                return texts[f"Text_{key}"]
-            
-            # Try to find a key that ends with the translation key
-            for text_key in texts:
-                if text_key.endswith(key):
-                    return texts[text_key]
+            # Convert search key to lowercase for case-insensitive matching
+            key_lower = key.lower()
+
+            # Try different key formats (case-insensitive)
+            # 1. Try exact match (case-insensitive)
+            for text_key, text_value in texts.items():
+                if text_key.lower() == key_lower:
+                    logger.info(f"Found translation via exact match (case-insensitive): '{key}' -> '{text_key}'")
+                    return text_value
+
+            # 2. Try with "Text_" prefix (case-insensitive)
+            text_prefix_key_lower = f"text_{key_lower}"
+            for text_key, text_value in texts.items():
+                if text_key.lower() == text_prefix_key_lower:
+                    logger.info(f"Found translation via Text_ prefix match (case-insensitive): '{key}' -> '{text_key}'")
+                    return text_value
+
+            # 3. Try to find a key that ends with the translation key (case-insensitive)
+            for text_key, text_value in texts.items():
+                if text_key.lower().endswith(key_lower):
+                    logger.info(f"Found translation via suffix match (case-insensitive): '{key}' -> '{text_key}'")
+                    return text_value
         
         # Handle array format
         elif isinstance(texts, list):

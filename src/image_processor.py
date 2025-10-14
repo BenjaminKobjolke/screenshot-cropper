@@ -14,7 +14,7 @@ logger = logging.getLogger("screenshot_cropper")
 class ImageProcessor:
     """Handler for image processing operations."""
     
-    def __init__(self, input_dir, output_dir, crop_settings, background_settings=None, text_processor=None, locale_handler=None, screenshot_filter=None):
+    def __init__(self, input_dir, output_dir, crop_settings, background_settings=None, text_processor=None, locale_handler=None, screenshot_filter=None, skip_existing=False):
         """
         Initialize the ImageProcessor.
 
@@ -26,6 +26,7 @@ class ImageProcessor:
             text_processor (TextProcessor, optional): Processor for text operations.
             locale_handler (LocaleHandler, optional): Handler for locale texts.
             screenshot_filter (int, optional): Only process screenshot with this number.
+            skip_existing (bool, optional): Skip processing if output file already exists.
         """
         self.input_dir = input_dir
         self.output_dir = output_dir
@@ -34,6 +35,7 @@ class ImageProcessor:
         self.text_processor = text_processor
         self.locale_handler = locale_handler
         self.screenshot_filter = screenshot_filter
+        self.skip_existing = skip_existing
         self.supported_extensions = ('.png', '.jpg', '.jpeg', '.psd')
         
         # Get text settings from text processor if available
@@ -98,6 +100,18 @@ class ImageProcessor:
                     add_one = screenshot_num is None
 
                     for locale in locales:
+                        # Check if we should skip this locale for this image
+                        if self.skip_existing:
+                            name, ext = os.path.splitext(filename)
+                            locale_output_dir = os.path.join(self.output_dir, locale)
+                            output_filename = f"{name}_{locale}{ext}"
+                            output_path = os.path.join(locale_output_dir, output_filename)
+
+                            if os.path.exists(output_path):
+                                logger.info(f"Skipping {filename} for locale {locale} - output file already exists")
+                                processed_count += 1  # Count as processed (skipped)
+                                continue
+
                         logger.info(f"Processing image {filename} (index: {text_index}, add_one: {add_one}) for locale {locale}")
                         text = self.locale_handler.get_text(locale, text_index, add_one=add_one)
                         try:
@@ -174,7 +188,10 @@ class ImageProcessor:
 
         # Build dictionary of final output paths for all locales
         # Export directly to final filenames (no temp files needed)
+        # If skip_existing is enabled, filter out locales where output already exists
         output_paths_by_locale = {}
+        skipped_locales = []
+
         for locale in locales:
             locale_output_dir = os.path.join(self.output_dir, locale)
             if not os.path.exists(locale_output_dir):
@@ -183,7 +200,18 @@ class ImageProcessor:
 
             output_filename = f"{name}_{locale}.png"
             output_path = os.path.join(locale_output_dir, output_filename)
-            output_paths_by_locale[locale] = output_path
+
+            # Check if we should skip this locale
+            if self.skip_existing and os.path.exists(output_path):
+                logger.info(f"Skipping locale {locale} - output file already exists: {output_path}")
+                skipped_locales.append(locale)
+            else:
+                output_paths_by_locale[locale] = output_path
+
+        # If all locales were skipped, return early
+        if not output_paths_by_locale:
+            logger.info(f"All locales skipped for PSD file: {os.path.basename(psd_path)}")
+            return len(skipped_locales)
 
         # Process PSD for all locales efficiently (opens file once, exports to final names)
         try:
@@ -194,7 +222,7 @@ class ImageProcessor:
 
         # Now apply compositor processing to each exported PNG (in-place)
         success_count = 0
-        for locale in locales:
+        for locale in output_paths_by_locale.keys():
             if not results.get(locale, False):
                 logger.error(f"PSD processing failed for locale {locale}")
                 continue
@@ -243,8 +271,13 @@ class ImageProcessor:
                         pass
                 success_count += 1
 
-        logger.info(f"Successfully processed PSD for {success_count}/{len(locales)} locales")
-        return success_count
+        # Add skipped locales to the total count
+        total_count = success_count + len(skipped_locales)
+        if skipped_locales:
+            logger.info(f"Successfully processed PSD for {success_count} locales, skipped {len(skipped_locales)} (total: {total_count}/{len(locales)})")
+        else:
+            logger.info(f"Successfully processed PSD for {success_count}/{len(locales)} locales")
+        return total_count
 
     def _process_image(self, image_path, locale=None, text=None):
         """

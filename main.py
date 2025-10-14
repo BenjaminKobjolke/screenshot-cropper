@@ -21,6 +21,7 @@ def parse_arguments():
     parser.add_argument("--screenshot", type=int, help="Process only the specified screenshot number (e.g., 7 for '7.png')")
     parser.add_argument("--language", type=str, help="Process only the specified language (e.g., 'en', 'de')")
     parser.add_argument("--prepare-and-export", action="store_true", help="Prepare PSD by renaming text layers and export template.json (requires --screenshot)")
+    parser.add_argument("--skip-existing", action="store_true", help="Skip processing for languages where output file already exists")
     return parser.parse_args()
 
 def main():
@@ -34,6 +35,7 @@ def main():
     screenshot_filter = args.screenshot
     language_filter = args.language
     prepare_and_export = args.prepare_and_export
+    skip_existing = args.skip_existing
 
     # Validate arguments
     if prepare_and_export and screenshot_filter is None:
@@ -46,6 +48,8 @@ def main():
         log_parts.append(f"filtering screenshot: {screenshot_filter}")
     if language_filter is not None:
         log_parts.append(f"filtering language: {language_filter}")
+    if skip_existing:
+        log_parts.append("skipping existing files")
     logger.info(", ".join(log_parts))
 
     if prepare_and_export:
@@ -180,7 +184,8 @@ def main():
                 background_settings,
                 text_processor,
                 locale_handler,
-                screenshot_filter
+                screenshot_filter,
+                skip_existing
             )
             processed_count = image_processor.process_images()
             logger.info(f"Successfully processed {processed_count} images for cropping/text.")
@@ -248,7 +253,10 @@ def main():
                         logger.info(f"Processing PSD '{filename}' for locales: {', '.join(psd_locale_handler.get_locales())}")
 
                         # Build dictionary of output paths for all locales
+                        # If skip_existing is enabled, filter out locales where output already exists
                         output_paths_by_locale = {}
+                        skipped_count = 0
+
                         for loc in psd_locale_handler.get_locales():
                             # Output path is now output_dir / locale / filename.png
                             locale_specific_output_dir = os.path.join(output_dir, loc)
@@ -258,19 +266,29 @@ def main():
 
                             output_png_filename = os.path.basename(psd_file_path).replace('.psd', '.png').replace('.PSD', '.png')
                             output_png_path = os.path.join(locale_specific_output_dir, output_png_filename)
-                            output_paths_by_locale[loc] = output_png_path
 
-                        # Process all locales efficiently in one pass
-                        logger.info(f"Processing PSD '{psd_file_path}' for all locales in one pass")
-                        results = psd_processor.process_psd_for_multiple_locales(psd_file_path, output_paths_by_locale)
-
-                        # Count successful processing
-                        for loc, success in results.items():
-                            if success:
-                                psd_files_processed_count += 1
-                                logger.info(f"Successfully processed PSD '{psd_file_path}' for locale '{loc}'")
+                            # Check if we should skip this locale
+                            if skip_existing and os.path.exists(output_png_path):
+                                logger.info(f"Skipping locale {loc} for PSD '{filename}' - output file already exists")
+                                skipped_count += 1
+                                psd_files_processed_count += 1  # Count as processed (skipped)
                             else:
-                                logger.error(f"Failed to process PSD '{psd_file_path}' for locale '{loc}'")
+                                output_paths_by_locale[loc] = output_png_path
+
+                        # Process all locales efficiently in one pass (if any remain)
+                        if output_paths_by_locale:
+                            logger.info(f"Processing PSD '{psd_file_path}' for {len(output_paths_by_locale)} locales in one pass")
+                            results = psd_processor.process_psd_for_multiple_locales(psd_file_path, output_paths_by_locale)
+
+                            # Count successful processing
+                            for loc, success in results.items():
+                                if success:
+                                    psd_files_processed_count += 1
+                                    logger.info(f"Successfully processed PSD '{psd_file_path}' for locale '{loc}'")
+                                else:
+                                    logger.error(f"Failed to process PSD '{psd_file_path}' for locale '{loc}'")
+                        else:
+                            logger.info(f"All locales skipped for PSD '{filename}'")
                     else:
                         logger.info(f"No active locales for PSD processing of '{filename}'. Processing to 'default' directory.")
                         # Output path is now output_dir / default / filename.png
