@@ -21,6 +21,16 @@ class PSDProcessor:
         """
         self.locale_handler = locale_handler
         self.text_settings = text_settings
+
+    def _check_photoshop_version(self, ps_version):
+        """Check if detected Photoshop version is supported and log helpful info."""
+        version_map = {
+            "22": "2021", "23": "2022", "24": "2023",
+            "25": "2024", "26": "2025"
+        }
+        major = ps_version.split(".")[0]
+        year = version_map.get(major, "Unknown")
+        logger.info(f"Detected Photoshop {year} (version {ps_version})")
     
     def process_psd(self, psd_path, output_path, locale=None):
         """
@@ -59,7 +69,7 @@ class PSDProcessor:
                 logger.info("Checking Photoshop installation...")
                 with Session() as ps:
                     ps_version = ps.app.version
-                    logger.info(f"Photoshop version: {ps_version}")
+                    self._check_photoshop_version(ps_version)
 
                     # Open the PSD file
                     doc = self._open_psd_file(ps, abs_psd_path)
@@ -129,7 +139,7 @@ class PSDProcessor:
                 logger.info("Checking Photoshop installation...")
                 with Session() as ps:
                     ps_version = ps.app.version
-                    logger.info(f"Photoshop version: {ps_version}")
+                    self._check_photoshop_version(ps_version)
 
                     # Open the PSD file once
                     doc = self._open_psd_file(ps, abs_psd_path)
@@ -711,7 +721,7 @@ class PSDProcessor:
 
             with Session() as ps:
                 ps_version = ps.app.version
-                logger.info(f"Photoshop version: {ps_version}")
+                self._check_photoshop_version(ps_version)
 
                 # Close any open documents first
                 logger.info("Closing any open documents in Photoshop")
