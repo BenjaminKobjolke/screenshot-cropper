@@ -3,7 +3,7 @@ Configuration handler for the Screenshot Cropper application.
 """
 import json
 import logging
-from src.models.settings import CropSettings, BackgroundSettings, TextSettings
+from src.models.settings import CropSettings, BackgroundSettings, TextSettings, OverlaySettings
 
 logger = logging.getLogger("screenshot_cropper")
 
@@ -103,7 +103,7 @@ class ConfigHandler:
             size = bg_data.get("size", {})
             width = size.get("width", 100)
             height = size.get("height", 100)
-            
+
             return BackgroundSettings(
                 file=bg_data["file"],
                 position_x=position_x,
@@ -114,14 +114,47 @@ class ConfigHandler:
         except KeyError as e:
             logger.error(f"Missing required background setting: {e}")
             return None
-    
+
+    def get_overlay_settings(self):
+        """
+        Get overlay settings from configuration.
+
+        Returns:
+            OverlaySettings: Overlay settings object, or None if not configured.
+        """
+        try:
+            # Check if overlay settings are present at top level
+            if "overlay" not in self.config_data:
+                return None
+
+            overlay_data = self.config_data["overlay"]
+
+            # Check for required fields
+            if "file" not in overlay_data:
+                logger.error("Missing required overlay setting: file")
+                return None
+
+            # Get position settings (default to 0,0)
+            position = overlay_data.get("position", {})
+            position_x = position.get("x", 0)
+            position_y = position.get("y", 0)
+
+            return OverlaySettings(
+                file=overlay_data["file"],
+                position_x=position_x,
+                position_y=position_y
+            )
+        except KeyError as e:
+            logger.error(f"Missing required overlay setting: {e}")
+            return None
+
     def get_text_settings(self):
         """
         Get text settings from configuration.
-        
+
         Returns:
             TextSettings: Text settings object, or None if not configured.
-        
+
         Raises:
             KeyError: If required text settings are missing.
         """
@@ -129,40 +162,40 @@ class ConfigHandler:
             # Check if text settings are present
             if "text" not in self.config_data:
                 return None
-            
+
             text_data = self.config_data["text"]
-            
+
             # Get font settings
             font_data = text_data.get("font", {})
-            
+
             # Get font properties
             font_files = font_data.get("files", {"default": "Arial.ttf"})
             if "default" not in font_files:
                 logger.warning("No default font specified, using Arial.ttf")
                 font_files["default"] = "Arial.ttf"
-            
+
             # Get font names for Photoshop
             font_names = font_data.get("names", {})
-                
+
             font_size = font_data.get("size", 24)
-            
+
             # Get alignment settings
             align = font_data.get("align", "left")
             vertical_align = font_data.get("vertical-align", "top")
-            
+
             # Get position and size
             x = font_data.get("x", 0)
             y = font_data.get("y", 0)
             width = font_data.get("width", 100)
             height = font_data.get("height", 100)
-            
+
             # Get color (default is black)
             color_data = font_data.get("color", {})
             r = color_data.get("r", 0)
             g = color_data.get("g", 0)
             b = color_data.get("b", 0)
             color = (r, g, b)
-            
+
             return TextSettings(
                 font_files=font_files,
                 font_size=font_size,
@@ -178,3 +211,18 @@ class ConfigHandler:
         except KeyError as e:
             logger.error(f"Missing required text setting: {e}")
             return None
+
+    def get_directories(self):
+        """
+        Get directory settings from configuration.
+
+        Returns:
+            dict: Dictionary with keys 'screenshots', 'locales', 'output'.
+                  Values are None if not configured.
+        """
+        directories = self.config_data.get("directories", {})
+        return {
+            'screenshots': directories.get("screenshots"),
+            'locales': directories.get("locales"),
+            'output': directories.get("output")
+        }

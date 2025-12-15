@@ -10,6 +10,7 @@ A Python application to crop screenshots based on JSON configuration.
 -   Process PSD files with text layer translation
 -   Generate multiple language versions of each image
 -   Configure crop, background, and text settings via JSON
+-   **Visual Editor** for interactive configuration of crop, position, and size settings
 -   Automatically create output directory
 -   Detailed logging
 
@@ -121,6 +122,35 @@ A Python application to crop screenshots based on JSON configuration.
     - A text layer named "Share Video Link!" becomes `lang_share_video_link` in the PSD
     - The template.json entry: `"share_video_link": "Share Video Link!"`
 
+    **Visual Editor Mode**
+
+    To visually configure crop settings, screenshot position, and size without manually editing the JSON, use the `--editor` flag:
+
+    ```
+    python main.py --directory path/to/your/directory --editor
+    ```
+
+    This launches a GUI window where you can:
+
+    -   **Adjust crop settings**: Set top, left, right, and bottom crop values with instant preview
+    -   **Position the screenshot**: Drag or use spinboxes to set where the cropped screenshot appears on the background
+    -   **Scale the screenshot**: Adjust width (height auto-calculated to preserve aspect ratio)
+    -   **Position the overlay**: If an overlay is configured, adjust its position
+
+    **Editor Controls:**
+
+    -   **Click** on a layer to select it
+    -   **Drag** to move the selected layer
+    -   **Mouse wheel** on screenshot to adjust its width
+    -   **Arrow keys**: Nudge selected layer by 1 pixel
+    -   **Shift+Arrow keys**: Nudge by 10 pixels
+    -   **Ctrl+S**: Save configuration to JSON
+    -   **Zoom controls**: Adjust preview zoom level
+
+    The editor requires at least a background image (`bg.png` or as specified in config) and a screenshot in `input/screenshots/` to preview. Place a sample image (PNG/JPG) in the screenshots folder before launching the editor.
+
+    Changes are saved directly to `screenshot-cropper.json` when you click Save or press Ctrl+S.
+
 3. Cropped images will be saved in an `output` subdirectory.
 
 ## Configuration (`screenshot-cropper.json`)
@@ -191,6 +221,29 @@ The file should have the following structure:
     -   `height`: Height in pixels
 
 If background settings are not provided, images will only be cropped (assuming `crop` settings are valid).
+
+### Overlay Settings (Optional)
+
+An overlay image can be placed on top of the final composite image:
+
+```json
+{
+    "overlay": {
+        "file": "overlay.png",
+        "position": {
+            "x": 0,
+            "y": 0
+        }
+    }
+}
+```
+
+-   `file`: Filename of the overlay image (located in the input directory). Should be a PNG with transparency.
+-   `position`: Position to place the overlay on the final image
+    -   `x`: X-coordinate (horizontal position)
+    -   `y`: Y-coordinate (vertical position)
+
+The overlay is applied after the screenshot is placed on the background, making it useful for adding frames, watermarks, or other decorative elements.
 
 ### Text Settings (Optional, within `screenshot-cropper.json`)
 

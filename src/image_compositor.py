@@ -13,20 +13,22 @@ class ImageCompositor:
     This class ensures consistent processing for both regular images and PSD exports.
     """
     
-    def __init__(self, crop_settings, background_settings=None, text_processor=None, base_dir=None):
+    def __init__(self, crop_settings, background_settings=None, text_processor=None, base_dir=None, overlay_settings=None):
         """
         Initialize the ImageCompositor.
-        
+
         Args:
             crop_settings (CropSettings): Settings for cropping the image
             background_settings (BackgroundSettings, optional): Settings for background placement
             text_processor (TextProcessor, optional): Processor for text overlay
             base_dir (str, optional): Base directory for finding the background image
+            overlay_settings (OverlaySettings, optional): Settings for overlay image
         """
         self.crop_settings = crop_settings
         self.background_settings = background_settings
         self.text_processor = text_processor
         self.base_dir = base_dir
+        self.overlay_settings = overlay_settings
     
     def process_image(self, image_path, output_path, text=None, locale=None):
         """
@@ -100,7 +102,10 @@ class ImageCompositor:
                 if self.background_settings:
                     try:
                         # Get the path to the background image
-                        if self.base_dir:
+                        if os.path.isabs(self.background_settings.file):
+                            # Use absolute path directly
+                            bg_path = self.background_settings.file
+                        elif self.base_dir:
                             # Use the provided base directory
                             bg_path = os.path.join(self.base_dir, "input", self.background_settings.file)
                         else:
@@ -145,6 +150,34 @@ class ImageCompositor:
                                 logger.info("Text processor available but no text to draw")
                             elif text:
                                 logger.warning("Text provided but no text processor available")
+
+                            # Apply overlay if configured
+                            if self.overlay_settings:
+                                # Find overlay path (same logic as background)
+                                if os.path.isabs(self.overlay_settings.file):
+                                    overlay_path = self.overlay_settings.file
+                                elif self.base_dir:
+                                    overlay_path = os.path.join(self.base_dir, "input", self.overlay_settings.file)
+                                else:
+                                    input_dir = os.path.dirname(os.path.dirname(image_path))
+                                    overlay_path = os.path.join(input_dir, "input", self.overlay_settings.file)
+
+                                if os.path.isfile(overlay_path):
+                                    logger.info(f"Applying overlay from: {overlay_path}")
+                                    overlay_img = Image.open(overlay_path).convert("RGBA")
+                                    # Convert final_img to RGBA if needed
+                                    if final_img.mode != "RGBA":
+                                        final_img = final_img.convert("RGBA")
+                                    # Paste with alpha transparency
+                                    final_img.paste(
+                                        overlay_img,
+                                        (self.overlay_settings.position_x, self.overlay_settings.position_y),
+                                        overlay_img  # Third arg = alpha mask
+                                    )
+                                    logger.info("Overlay applied successfully")
+                                else:
+                                    logger.warning(f"Overlay image not found: {overlay_path}")
+
                             # Save final image
                             final_img.save(output_path)
                             logger.info(f"Saved composite image to: {output_path}")

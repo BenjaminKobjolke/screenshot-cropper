@@ -14,7 +14,7 @@ logger = logging.getLogger("screenshot_cropper")
 class ImageProcessor:
     """Handler for image processing operations."""
     
-    def __init__(self, input_dir, output_dir, crop_settings, background_settings=None, text_processor=None, locale_handler=None, screenshot_filter=None, skip_existing=False):
+    def __init__(self, input_dir, output_dir, crop_settings, background_settings=None, text_processor=None, locale_handler=None, screenshot_filter=None, skip_existing=False, overlay_settings=None):
         """
         Initialize the ImageProcessor.
 
@@ -27,6 +27,7 @@ class ImageProcessor:
             locale_handler (LocaleHandler, optional): Handler for locale texts.
             screenshot_filter (int, optional): Only process screenshot with this number.
             skip_existing (bool, optional): Skip processing if output file already exists.
+            overlay_settings (OverlaySettings, optional): Overlay settings to apply.
         """
         self.input_dir = input_dir
         self.output_dir = output_dir
@@ -36,20 +37,21 @@ class ImageProcessor:
         self.locale_handler = locale_handler
         self.screenshot_filter = screenshot_filter
         self.skip_existing = skip_existing
+        self.overlay_settings = overlay_settings
         self.supported_extensions = ('.png', '.jpg', '.jpeg', '.psd')
-        
+
         # Get text settings from text processor if available
         text_settings = None
         if text_processor and hasattr(text_processor, 'text_settings'):
             text_settings = text_processor.text_settings
-            
+
         # Initialize PSD processor with locale handler and text settings
         self.psd_processor = PSDProcessor(locale_handler, text_settings)
-        
+
         # Initialize image compositor for consistent image processing
         # Pass the directory containing the input and output directories as the base directory
         base_dir = os.path.dirname(os.path.dirname(input_dir))
-        self.image_compositor = ImageCompositor(crop_settings, background_settings, text_processor, base_dir)
+        self.image_compositor = ImageCompositor(crop_settings, background_settings, text_processor, base_dir, overlay_settings)
         logger.info(f"Initialized image compositor with base directory: {base_dir}")
     
     def process_images(self):

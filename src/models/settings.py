@@ -46,11 +46,11 @@ class CropSettings:
 
 class BackgroundSettings:
     """Class to store background image settings."""
-    
+
     def __init__(self, file, position_x, position_y, width, height):
         """
         Initialize background settings.
-        
+
         Args:
             file (str): Background image file name.
             position_x (int): X position of the cropped image on the background.
@@ -84,6 +84,38 @@ class BackgroundSettings:
         """Return string representation of background settings."""
         return (f"BackgroundSettings(file='{self.file}', position_x={self.position_x}, "
                 f"position_y={self.position_y}, width={self.width}, height={self.height})")
+
+
+class OverlaySettings:
+    """Class to store overlay image settings."""
+
+    def __init__(self, file, position_x=0, position_y=0):
+        """
+        Initialize overlay settings.
+
+        Args:
+            file (str): Overlay image file name.
+            position_x (int): X position of the overlay on the final image.
+            position_y (int): Y position of the overlay on the final image.
+        """
+        self.file = file
+        self.position_x = position_x
+        self.position_y = position_y
+        self._validate()
+
+    def _validate(self):
+        """Validate overlay settings."""
+        if self.position_x < 0:
+            logger.warning(f"Invalid position_x value: {self.position_x}, setting to 0")
+            self.position_x = 0
+        if self.position_y < 0:
+            logger.warning(f"Invalid position_y value: {self.position_y}, setting to 0")
+            self.position_y = 0
+
+    def __repr__(self):
+        """Return string representation of overlay settings."""
+        return (f"OverlaySettings(file='{self.file}', position_x={self.position_x}, "
+                f"position_y={self.position_y})")
 
 
 class TextSettings:
