@@ -13,8 +13,8 @@ logger = logging.getLogger("screenshot_cropper")
 
 class ImageProcessor:
     """Handler for image processing operations."""
-    
-    def __init__(self, input_dir, output_dir, crop_settings, background_settings=None, text_processor=None, locale_handler=None, screenshot_filter=None, skip_existing=False, overlay_settings=None):
+
+    def __init__(self, input_dir, output_dir, crop_settings, background_settings=None, text_processor=None, locale_handler=None, screenshot_filter=None, skip_existing=False, overlay_settings=None, export_settings=None):
         """
         Initialize the ImageProcessor.
 
@@ -28,6 +28,7 @@ class ImageProcessor:
             screenshot_filter (int, optional): Only process screenshot with this number.
             skip_existing (bool, optional): Skip processing if output file already exists.
             overlay_settings (OverlaySettings, optional): Overlay settings to apply.
+            export_settings (ExportSettings, optional): Export format and quality settings.
         """
         self.input_dir = input_dir
         self.output_dir = output_dir
@@ -38,6 +39,7 @@ class ImageProcessor:
         self.screenshot_filter = screenshot_filter
         self.skip_existing = skip_existing
         self.overlay_settings = overlay_settings
+        self.export_settings = export_settings
         self.supported_extensions = ('.png', '.jpg', '.jpeg', '.psd')
 
         # Get text settings from text processor if available
@@ -51,9 +53,15 @@ class ImageProcessor:
         # Initialize image compositor for consistent image processing
         # Pass the directory containing the input and output directories as the base directory
         base_dir = os.path.dirname(os.path.dirname(input_dir))
-        self.image_compositor = ImageCompositor(crop_settings, background_settings, text_processor, base_dir, overlay_settings)
+        self.image_compositor = ImageCompositor(crop_settings, background_settings, text_processor, base_dir, overlay_settings, export_settings, output_dir)
         logger.info(f"Initialized image compositor with base directory: {base_dir}")
-    
+
+    def _get_output_extension(self):
+        """Get the output file extension based on export settings."""
+        if self.export_settings:
+            return f".{self.export_settings.format}"
+        return ".png"
+
     def process_images(self):
         """
         Process all images in the input directory.
@@ -194,13 +202,14 @@ class ImageProcessor:
         output_paths_by_locale = {}
         skipped_locales = []
 
+        output_ext = self._get_output_extension()
         for locale in locales:
             locale_output_dir = os.path.join(self.output_dir, locale)
             if not os.path.exists(locale_output_dir):
                 os.makedirs(locale_output_dir)
                 logger.info(f"Created locale-specific output directory: {locale_output_dir}")
 
-            output_filename = f"{name}_{locale}.png"
+            output_filename = f"{name}_{locale}{output_ext}"
             output_path = os.path.join(locale_output_dir, output_filename)
 
             # Check if we should skip this locale
@@ -215,63 +224,62 @@ class ImageProcessor:
             logger.info(f"All locales skipped for PSD file: {os.path.basename(psd_path)}")
             return len(skipped_locales)
 
-        # Process PSD for all locales efficiently (opens file once, exports to final names)
+        # Build temp PNG paths for PSD export (Photoshop only exports PNG)
+        # Final output may be different format (e.g., webp)
+        temp_png_paths_by_locale = {}
+        for locale, final_path in output_paths_by_locale.items():
+            base, _ = os.path.splitext(final_path)
+            temp_png_paths_by_locale[locale] = f"{base}_psd_temp.png"
+
+        # Process PSD for all locales efficiently (opens file once, exports to temp PNG files)
         try:
-            results = self.psd_processor.process_psd_for_multiple_locales(psd_path, output_paths_by_locale)
+            results = self.psd_processor.process_psd_for_multiple_locales(psd_path, temp_png_paths_by_locale)
         except Exception as e:
             logger.error(f"Failed to process PSD file {psd_path}: {e}")
             raise
 
-        # Now apply compositor processing to each exported PNG (in-place)
+        # Now apply compositor processing to each exported PNG and save to final format
         success_count = 0
         for locale in output_paths_by_locale.keys():
             if not results.get(locale, False):
                 logger.error(f"PSD processing failed for locale {locale}")
                 continue
 
-            output_path = output_paths_by_locale[locale]
+            temp_png_path = temp_png_paths_by_locale[locale]
+            final_output_path = output_paths_by_locale[locale]
 
-            # Verify the file was created
-            if not os.path.exists(output_path):
-                logger.error(f"PSD output not found for locale {locale}: {output_path}")
+            # Verify the temp PNG was created
+            if not os.path.exists(temp_png_path):
+                logger.error(f"PSD output not found for locale {locale}: {temp_png_path}")
                 continue
 
             # Get text for this locale
             text = self.locale_handler.get_text(locale, text_index, add_one=add_one)
 
             # Apply compositor processing (crop, background, text overlay)
-            # Process in-place: read from output_path, write back to output_path
+            # Read from temp PNG, save to final output path with correct format
             try:
-                logger.info(f"Applying compositor to PSD output for locale {locale}: {output_path}")
+                logger.info(f"Applying compositor to PSD output for locale {locale}: {temp_png_path}")
 
-                # Create a temporary file for compositor processing
-                temp_compositor_path = output_path.replace('.png', '_comp_temp.png')
-
-                compositor_success = self.image_compositor.process_image(output_path, temp_compositor_path, text, locale)
+                compositor_success = self.image_compositor.process_image(temp_png_path, final_output_path, text, locale)
 
                 if compositor_success:
-                    # Replace original with composited version
-                    os.replace(temp_compositor_path, output_path)
                     logger.info(f"Successfully processed PSD with compositor for locale {locale}")
                     success_count += 1
                 else:
-                    logger.warning(f"Compositor failed for locale {locale}, keeping PSD output as-is")
-                    # Remove temp file if it exists
-                    if os.path.exists(temp_compositor_path):
-                        os.remove(temp_compositor_path)
-                    success_count += 1
+                    logger.warning(f"Compositor failed for locale {locale}")
 
             except Exception as compositor_error:
                 logger.error(f"Error applying compositor for locale {locale}: {compositor_error}")
-                # Keep the original PSD output
-                logger.info(f"Keeping unprocessed PSD output for locale {locale}")
-                # Clean up temp file if it exists
-                if os.path.exists(temp_compositor_path):
+
+            finally:
+                # Clean up temp PNG file
+                if os.path.exists(temp_png_path):
                     try:
-                        os.remove(temp_compositor_path)
-                    except:
-                        pass
-                success_count += 1
+                        os.remove(temp_png_path)
+                        logger.debug(f"Removed temp PSD export: {temp_png_path}")
+                    except Exception as cleanup_error:
+                        logger.warning(f"Could not remove temp file {temp_png_path}: {cleanup_error}")
 
         # Add skipped locales to the total count
         total_count = success_count + len(skipped_locales)
@@ -296,7 +304,8 @@ class ImageProcessor:
         # Get output file path
         filename = os.path.basename(image_path)
         name, ext = os.path.splitext(filename)
-        
+        output_ext = self._get_output_extension()
+
         # If locale is provided, create locale-specific subdirectory and add locale to filename
         if locale:
             # Create locale-specific subdirectory
@@ -304,22 +313,21 @@ class ImageProcessor:
             if not os.path.exists(locale_output_dir):
                 os.makedirs(locale_output_dir)
                 logger.info(f"Created locale-specific output directory: {locale_output_dir}")
-            
-            output_filename = f"{name}_{locale}{ext}"
+
+            output_filename = f"{name}_{locale}{output_ext}"
             output_path = os.path.join(locale_output_dir, output_filename)
         else:
-            output_filename = filename
+            output_filename = f"{name}{output_ext}"
             output_path = os.path.join(self.output_dir, output_filename)
-        
+
         if locale:
             logger.info(f"Processing image: {filename} for locale: {locale}")
         else:
             logger.info(f"Processing image: {filename}")
-        
+
         # Handle PSD files differently
         if filename.lower().endswith('.psd'):
-            # For PSD files, always save as PNG
-            output_path = output_path.rsplit('.', 1)[0] + '.png'
+            # For PSD files, output uses configured export format
             return self._process_psd(image_path, output_path, locale, text)
         
         # Use the image compositor to process the image
@@ -333,57 +341,57 @@ class ImageProcessor:
     def _process_psd(self, psd_path, output_path, locale=None, text=None):
         """
         Process a PSD file using the PSD processor.
-        
+
         Args:
             psd_path (str): Path to the PSD file.
-            output_path (str): Path to save the output PNG file.
+            output_path (str): Path to save the output file (format based on export settings).
             locale (str, optional): Locale code for text translation.
             text (str, optional): Text to overlay on the image.
-            
+
         Returns:
             bool: True if processing was successful.
-            
+
         Raises:
             Exception: If PSD processing fails.
         """
         logger.info(f"Processing PSD file: {os.path.basename(psd_path)}")
-        
-        # Create a temporary path for the initial PNG output
+
+        # Create a temporary PNG path for PSD export (Photoshop only exports PNG)
         temp_output_dir = os.path.dirname(output_path)
-        temp_filename = f"temp_{os.path.basename(output_path)}"
-        temp_output_path = os.path.join(temp_output_dir, temp_filename)
-        
-        # Process the PSD file and save to temporary location
-        success = self.psd_processor.process_psd(psd_path, temp_output_path, locale)
-        
+        base_name, _ = os.path.splitext(os.path.basename(output_path))
+        temp_png_path = os.path.join(temp_output_dir, f"{base_name}_psd_temp.png")
+
+        # Process the PSD file and save to temporary PNG
+        success = self.psd_processor.process_psd(psd_path, temp_png_path, locale)
+
         if not success:
             raise Exception(f"Failed to process PSD file: {psd_path}")
-        
+
         # Use the image compositor to process the temporary PNG file
-        if os.path.exists(temp_output_path):
+        if os.path.exists(temp_png_path):
             try:
                 # Process the temporary PNG using the image compositor
-                logger.info(f"Applying compositor to processed PSD output: {temp_output_path}")
-                success = self.image_compositor.process_image(temp_output_path, output_path, text, locale)
-                
+                # Compositor will save in the configured format (PNG or WebP)
+                logger.info(f"Applying compositor to processed PSD output: {temp_png_path}")
+                success = self.image_compositor.process_image(temp_png_path, output_path, text, locale)
+
                 if not success:
-                    raise Exception(f"Failed to apply compositor to processed PSD: {temp_output_path}")
-                
-                # Remove the temporary file
-                if os.path.exists(temp_output_path):
-                    os.remove(temp_output_path)
-                    logger.info(f"Removed temporary file: {temp_output_path}")
-                
+                    raise Exception(f"Failed to apply compositor to processed PSD: {temp_png_path}")
+
                 return True
-                
+
             except Exception as e:
                 logger.error(f"Error processing PSD output: {e}")
-                # If there was an error, use the temporary file as the output
-                if os.path.exists(temp_output_path):
-                    os.replace(temp_output_path, output_path)
-                    logger.info(f"Saved unprocessed PSD output to: {output_path}")
+                raise
+
+            finally:
+                # Clean up the temporary PNG file
+                if os.path.exists(temp_png_path):
+                    try:
+                        os.remove(temp_png_path)
+                        logger.debug(f"Removed temporary PSD export: {temp_png_path}")
+                    except Exception as cleanup_error:
+                        logger.warning(f"Could not remove temp file {temp_png_path}: {cleanup_error}")
         else:
-            logger.error(f"Temporary PSD output file not found: {temp_output_path}")
+            logger.error(f"Temporary PSD output file not found: {temp_png_path}")
             return False
-        
-        return True

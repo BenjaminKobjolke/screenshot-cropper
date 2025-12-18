@@ -12,8 +12,8 @@ class ImageCompositor:
     Handles the composition of images with background and text overlay.
     This class ensures consistent processing for both regular images and PSD exports.
     """
-    
-    def __init__(self, crop_settings, background_settings=None, text_processor=None, base_dir=None, overlay_settings=None):
+
+    def __init__(self, crop_settings, background_settings=None, text_processor=None, base_dir=None, overlay_settings=None, export_settings=None, output_dir=None):
         """
         Initialize the ImageCompositor.
 
@@ -23,13 +23,74 @@ class ImageCompositor:
             text_processor (TextProcessor, optional): Processor for text overlay
             base_dir (str, optional): Base directory for finding the background image
             overlay_settings (OverlaySettings, optional): Settings for overlay image
+            export_settings (ExportSettings, optional): Settings for export format and quality
+            output_dir (str, optional): Base output directory for saving cropped images
         """
         self.crop_settings = crop_settings
         self.background_settings = background_settings
         self.text_processor = text_processor
         self.base_dir = base_dir
         self.overlay_settings = overlay_settings
-    
+        self.export_settings = export_settings
+        self.output_dir = output_dir
+
+    def _save_image(self, img, output_path):
+        """
+        Save image with configured format and quality.
+
+        Args:
+            img (PIL.Image): The image to save
+            output_path (str): Path to save the image
+
+        Returns:
+            str: The actual output path used (may have different extension)
+        """
+        if self.export_settings:
+            # Change extension based on format
+            base, _ = os.path.splitext(output_path)
+            output_path = f"{base}.{self.export_settings.format}"
+
+            if self.export_settings.format == "webp":
+                if self.export_settings.lossless:
+                    # Lossless WebP preserves transparency
+                    img.save(output_path, "WEBP", lossless=True)
+                else:
+                    img.save(output_path, "WEBP", quality=self.export_settings.quality)
+            else:
+                img.save(output_path, "PNG")
+        else:
+            img.save(output_path)
+
+        return output_path
+
+    def _save_cropped_image(self, cropped_img, output_path, locale=None):
+        """
+        Save the cropped image to the cropped subfolder.
+
+        Args:
+            cropped_img (PIL.Image): The cropped image to save
+            output_path (str): The final output path (used to derive cropped path)
+            locale (str, optional): Locale code for subfolder organization
+        """
+        if not self.output_dir or not self.export_settings or not self.export_settings.keep_cropped:
+            return
+
+        # Build cropped output path: output_dir/cropped/{locale}/filename
+        filename = os.path.basename(output_path)
+        if locale:
+            cropped_dir = os.path.join(self.output_dir, "cropped", locale)
+        else:
+            cropped_dir = os.path.join(self.output_dir, "cropped")
+
+        # Create directory if it doesn't exist
+        if not os.path.exists(cropped_dir):
+            os.makedirs(cropped_dir)
+            logger.info(f"Created cropped output directory: {cropped_dir}")
+
+        cropped_path = os.path.join(cropped_dir, filename)
+        actual_path = self._save_image(cropped_img, cropped_path)
+        logger.info(f"Saved cropped image to: {actual_path}")
+
     def process_image(self, image_path, output_path, text=None, locale=None):
         """
         Process an image through the complete workflow:
@@ -97,7 +158,10 @@ class ImageCompositor:
                     # Crop image
                     logger.info(f"Cropping image: {left}, {top}, {right}, {bottom}")
                     cropped_img = img.crop((left, top, right, bottom))
-                
+
+                # Save cropped image separately if keep_cropped is enabled
+                self._save_cropped_image(cropped_img, output_path, locale)
+
                 # If background settings are provided, apply background
                 if self.background_settings:
                     try:
@@ -120,8 +184,8 @@ class ImageCompositor:
                         if not os.path.isfile(bg_path):
                             logger.error(f"Background image not found: {bg_path}")
                             # Save just the cropped image
-                            cropped_img.save(output_path)
-                            logger.info(f"Saved cropped image to: {output_path}")
+                            actual_path = self._save_image(cropped_img, output_path)
+                            logger.info(f"Saved cropped image to: {actual_path}")
                             return True
                         
                         # Open background image
@@ -179,17 +243,17 @@ class ImageCompositor:
                                     logger.warning(f"Overlay image not found: {overlay_path}")
 
                             # Save final image
-                            final_img.save(output_path)
-                            logger.info(f"Saved composite image to: {output_path}")
+                            actual_path = self._save_image(final_img, output_path)
+                            logger.info(f"Saved composite image to: {actual_path}")
                     except Exception as e:
                         logger.error(f"Error applying background to {os.path.basename(image_path)}: {e}")
                         # Save just the cropped image as fallback
-                        cropped_img.save(output_path)
-                        logger.info(f"Saved cropped image to: {output_path}")
+                        actual_path = self._save_image(cropped_img, output_path)
+                        logger.info(f"Saved cropped image to: {actual_path}")
                 else:
                     # Save just the cropped image
-                    cropped_img.save(output_path)
-                    logger.info(f"Saved cropped image to: {output_path}")
+                    actual_path = self._save_image(cropped_img, output_path)
+                    logger.info(f"Saved cropped image to: {actual_path}")
             
             return True
             

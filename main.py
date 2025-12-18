@@ -167,6 +167,7 @@ def main():
     background_settings = None
     text_settings = None
     overlay_settings = None
+    export_settings = None
 
     # Create output directory if it doesn't exist
     if not os.path.exists(output_dir):
@@ -211,6 +212,11 @@ def main():
                 logger.info(f"Loaded overlay settings: {overlay_settings}")
             else:
                 logger.info(f"No overlay settings found in '{config_file}', or section is missing.")
+
+            current_export_settings = config_handler.get_export_settings()
+            if current_export_settings:
+                export_settings = current_export_settings
+                logger.info(f"Loaded export settings: {export_settings}")
         except Exception as e:
             logger.error(f"Failed to load or parse configuration from '{config_file}': {e}. Cropping, background, and text overlay will be skipped.")
             # Ensure settings are reset to None if any error occurred during parsing
@@ -218,6 +224,7 @@ def main():
             background_settings = None
             text_settings = None
             overlay_settings = None
+            export_settings = None
     
     # Initialize locale handler if text settings are available
     locale_handler = None
@@ -250,7 +257,8 @@ def main():
                 locale_handler,
                 screenshot_filter,
                 skip_existing,
-                overlay_settings
+                overlay_settings,
+                export_settings
             )
             processed_count = image_processor.process_images()
             logger.info(f"Successfully processed {processed_count} images for cropping/text.")

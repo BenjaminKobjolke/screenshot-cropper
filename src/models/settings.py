@@ -118,6 +118,39 @@ class OverlaySettings:
                 f"position_y={self.position_y})")
 
 
+class ExportSettings:
+    """Class to store export format settings."""
+
+    def __init__(self, format="png", quality=90, keep_cropped=False, lossless=False):
+        """
+        Initialize export settings.
+
+        Args:
+            format (str): Export format ("png" or "webp"). Defaults to "png".
+            quality (int): Quality for lossy formats like WebP (1-100). Defaults to 90.
+            keep_cropped (bool): If True, save cropped images separately. Defaults to False.
+            lossless (bool): If True, use lossless WebP compression (preserves transparency). Defaults to False.
+        """
+        self.format = format.lower()
+        self.quality = quality
+        self.keep_cropped = keep_cropped
+        self.lossless = lossless
+        self._validate()
+
+    def _validate(self):
+        """Validate export settings."""
+        if self.format not in ["png", "webp"]:
+            logger.warning(f"Invalid format value: {self.format}, setting to 'png'")
+            self.format = "png"
+        if self.quality < 1 or self.quality > 100:
+            logger.warning(f"Invalid quality value: {self.quality}, setting to 90")
+            self.quality = 90
+
+    def __repr__(self):
+        """Return string representation of export settings."""
+        return f"ExportSettings(format='{self.format}', quality={self.quality}, keep_cropped={self.keep_cropped}, lossless={self.lossless})"
+
+
 class TextSettings:
     """Class to store text overlay settings."""
     

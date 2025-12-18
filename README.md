@@ -10,6 +10,7 @@ A Python application to crop screenshots based on JSON configuration.
 -   Process PSD files with text layer translation
 -   Generate multiple language versions of each image
 -   Configure crop, background, and text settings via JSON
+-   **Export to PNG or WebP** with configurable quality settings
 -   **Visual Editor** for interactive configuration of crop, position, and size settings
 -   Automatically create output directory
 -   Detailed logging
@@ -244,6 +245,39 @@ An overlay image can be placed on top of the final composite image:
     -   `y`: Y-coordinate (vertical position)
 
 The overlay is applied after the screenshot is placed on the background, making it useful for adding frames, watermarks, or other decorative elements.
+
+### Export Settings (Optional)
+
+Configure the output format, quality, and whether to keep intermediate cropped images:
+
+```json
+{
+    "export": {
+        "format": "webp",
+        "quality": 90,
+        "lossless": true,
+        "keep_cropped": true
+    }
+}
+```
+
+-   `format`: Output format - `"png"` (default) or `"webp"`
+-   `quality`: Quality setting for WebP compression (1-100). Higher values produce better quality but larger files. Default: 90. Ignored when `lossless` is `true`.
+-   `lossless`: If `true`, uses lossless WebP compression which preserves transparency. Default: `false`. When enabled, `quality` is ignored.
+-   `keep_cropped`: If `true`, saves the cropped images (before placing on background) to a separate `cropped/` subfolder. Default: `false`.
+
+When `keep_cropped` is enabled, the output structure will include a `cropped` folder:
+
+```
+output/
+├── en/
+│   └── 1_en.webp           # Final composited image
+├── cropped/
+│   └── en/
+│       └── 1_en.webp       # Cropped-only image
+```
+
+If the `export` section is not present, images will be saved as PNG (backwards compatible with existing configurations).
 
 ### Text Settings (Optional, within `screenshot-cropper.json`)
 

@@ -3,7 +3,7 @@ Configuration handler for the Screenshot Cropper application.
 """
 import json
 import logging
-from src.models.settings import CropSettings, BackgroundSettings, TextSettings, OverlaySettings
+from src.models.settings import CropSettings, BackgroundSettings, TextSettings, OverlaySettings, ExportSettings
 
 logger = logging.getLogger("screenshot_cropper")
 
@@ -226,3 +226,21 @@ class ConfigHandler:
             'locales': directories.get("locales"),
             'output': directories.get("output")
         }
+
+    def get_export_settings(self):
+        """
+        Get export settings from configuration.
+
+        Returns:
+            ExportSettings: Export settings object with format, quality, and keep_cropped.
+        """
+        if "export" not in self.config_data:
+            return ExportSettings()  # defaults to PNG, quality 90, keep_cropped False
+
+        export_data = self.config_data["export"]
+        return ExportSettings(
+            format=export_data.get("format", "png"),
+            quality=export_data.get("quality", 90),
+            keep_cropped=export_data.get("keep_cropped", False),
+            lossless=export_data.get("lossless", False)
+        )
