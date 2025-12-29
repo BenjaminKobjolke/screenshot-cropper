@@ -14,13 +14,34 @@ class PSDProcessor:
     def __init__(self, locale_handler=None, text_settings=None):
         """
         Initialize the PSDProcessor.
-        
+
         Args:
             locale_handler (LocaleHandler, optional): Handler for locale texts.
             text_settings (TextSettings, optional): Text settings for font configuration.
         """
         self.locale_handler = locale_handler
         self.text_settings = text_settings
+
+    def _get_postscript_name_from_font_file(self, font_file):
+        """
+        Extract PostScript name from TTF file using fontTools.
+
+        Args:
+            font_file (str): Font filename (e.g., 'NotoSansKR-Bold.ttf').
+
+        Returns:
+            str: PostScript name, or None if extraction failed.
+        """
+        try:
+            from fontTools import ttLib
+            font_path = os.path.join("fonts", font_file)
+            font = ttLib.TTFont(font_path)
+            ps_name = font['name'].getDebugName(6)  # nameID 6 = PostScript name
+            logger.info(f"Extracted PostScript name '{ps_name}' from {font_file}")
+            return ps_name
+        except Exception as e:
+            logger.warning(f"Could not extract PostScript name from {font_file}: {e}")
+            return None
 
     def _check_photoshop_version(self, ps_version):
         """Check if detected Photoshop version is supported and log helpful info."""
@@ -424,12 +445,22 @@ class PSDProcessor:
                                 # Use json.dumps to properly handle all special characters including newlines
                                 js_safe_text = json.dumps(translated_text)
                                 
-                                # Get font name for this locale if available
+                                # Get font name for this locale
                                 font_name = None
-                                if self.text_settings and hasattr(self.text_settings, 'font_names'):
-                                    font_name = self.text_settings.font_names.get(locale)
-                                    if font_name:
-                                        logger.info(f"Using font name for locale 123 {locale}: {font_name}")
+                                if self.text_settings:
+                                    # First try explicit font_names mapping
+                                    if hasattr(self.text_settings, 'font_names') and self.text_settings.font_names:
+                                        font_name = self.text_settings.font_names.get(locale)
+                                        if font_name:
+                                            logger.info(f"Using explicit font name for locale {locale}: {font_name}")
+
+                                    # If not found, derive from font_files using fontTools
+                                    if not font_name and hasattr(self.text_settings, 'font_files'):
+                                        font_file = self.text_settings.font_files.get(locale) or self.text_settings.font_files.get('default')
+                                        if font_file:
+                                            font_name = self._get_postscript_name_from_font_file(font_file)
+                                            if font_name:
+                                                logger.info(f"Using derived font name for locale {locale}: {font_name}")
                                 
                                 # Create JavaScript that replaces \n with paragraph breaks (\r)
                                 # and sets the font if specified
@@ -522,12 +553,22 @@ class PSDProcessor:
                                     # Use json.dumps to properly handle all special characters including newlines
                                     js_safe_text = json.dumps(translated_text)
                                     
-                                    # Get font name for this locale if available
+                                    # Get font name for this locale
                                     font_name = None
-                                    if self.text_settings and hasattr(self.text_settings, 'font_names'):
-                                        font_name = self.text_settings.font_names.get(locale)
-                                        if font_name:
-                                            logger.info(f"Using font name for locale {locale}: {font_name}")
+                                    if self.text_settings:
+                                        # First try explicit font_names mapping
+                                        if hasattr(self.text_settings, 'font_names') and self.text_settings.font_names:
+                                            font_name = self.text_settings.font_names.get(locale)
+                                            if font_name:
+                                                logger.info(f"Using explicit font name for locale {locale}: {font_name}")
+
+                                        # If not found, derive from font_files using fontTools
+                                        if not font_name and hasattr(self.text_settings, 'font_files'):
+                                            font_file = self.text_settings.font_files.get(locale) or self.text_settings.font_files.get('default')
+                                            if font_file:
+                                                font_name = self._get_postscript_name_from_font_file(font_file)
+                                                if font_name:
+                                                    logger.info(f"Using derived font name for locale {locale}: {font_name}")
                                     
                                     js_script_font_name = '''
                                     var currentFont = app.activeDocument.activeLayer.textItem.font;
@@ -655,11 +696,19 @@ class PSDProcessor:
         # Convert to lowercase
         sanitized = name.lower()
 
+        # Strip all existing "lang_" prefixes to avoid duplication
+        while sanitized.startswith('lang_'):
+            sanitized = sanitized[5:]  # Remove "lang_" (5 chars)
+
+        # Strip " copy" suffix (with optional numbers) that Photoshop adds when duplicating layers
+        # Matches: " copy", " copy 2", " copy 123", etc.
+        sanitized = re.sub(r'\s*copy\s*\d*$', '', sanitized)
+
         # Replace spaces with underscores
         sanitized = sanitized.replace(' ', '_')
 
-        # Keep only a-z and underscore
-        sanitized = re.sub(r'[^a-z_]', '', sanitized)
+        # Keep only a-z, 0-9, underscore, dot, and hyphen
+        sanitized = re.sub(r'[^a-z0-9._-]', '', sanitized)
 
         # Limit to 30 characters, truncating at word boundaries
         if len(sanitized) > 30:
@@ -860,8 +909,15 @@ class PSDProcessor:
                 # Get current text content
                 text_content = layer.textItem.contents if hasattr(layer, 'textItem') else ""
 
-                # Sanitize the layer name
-                sanitized_name = self._sanitize_layer_name(original_name)
+                # Sanitize the text content to create the layer name
+                sanitized_name = self._sanitize_layer_name(text_content)
+
+                # Handle duplicate keys - only add suffix if text content differs
+                base_name = sanitized_name
+                counter = 2
+                while sanitized_name in template and template[sanitized_name] != text_content:
+                    sanitized_name = f"{base_name}_{counter}"
+                    counter += 1
 
                 # Create new layer name
                 new_layer_name = f"lang_{sanitized_name}"

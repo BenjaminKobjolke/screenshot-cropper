@@ -19,6 +19,7 @@ A Python application to crop screenshots based on JSON configuration.
 
 -   Python 3.6 or higher
 -   Pillow library
+-   fontTools (for automatic font name detection in PSD processing)
 -   photoshop-python-api (optional, for advanced PSD processing)
 
 ## Installation
@@ -109,19 +110,26 @@ A Python application to crop screenshots based on JSON configuration.
     This mode will:
     1. Open the PSD file matching the screenshot number (e.g., `screenshot_05.psd`)
     2. Traverse all text layers in the document (including nested groups)
-    3. Rename each text layer to `lang_[sanitized_name]` format where:
-       - Original layer name is converted to lowercase
+    3. Rename each text layer to `lang_[sanitized_text]` format based on the **text content** of the layer:
+       - Text is converted to lowercase
        - Spaces are replaced with underscores
-       - Only a-z and underscore characters are kept
+       - Allowed characters: a-z, 0-9, underscore, dot, and hyphen
+       - Existing `lang_` prefixes are stripped (fixes already processed layers)
+       - Photoshop's ` copy` suffixes are stripped (e.g., "Button copy 2" → "button")
        - Name is limited to 30 characters
-    4. Export/update `output/template.json` with the sanitized names as keys and current text content as values
-    5. Save the modified PSD file
+    4. Handle duplicate keys intelligently:
+       - Layers with identical text share the same key
+       - Layers with different text get numeric suffixes (`_2`, `_3`, etc.)
+    5. Export/update `output/template.json` with the sanitized names as keys and current text content as values
+    6. Save the modified PSD file
 
     If `template.json` already exists, it will be updated with the new keys (existing keys are preserved or updated if they match).
 
-    Example:
-    - A text layer named "Share Video Link!" becomes `lang_share_video_link` in the PSD
+    Examples:
+    - A text layer with text "Share Video Link!" becomes `lang_share_video_link` in the PSD
     - The template.json entry: `"share_video_link": "Share Video Link!"`
+    - Two layers with text "Vacation" share the same key: `"vacation": "Vacation"`
+    - Layers with "vacation" and "Vacation" get separate keys: `"vacation"` and `"vacation_2"`
 
     **Visual Editor Mode**
 
@@ -282,9 +290,9 @@ If the `export` section is not present, images will be saved as PNG (backwards c
 ### Text Settings (Optional, within `screenshot-cropper.json`)
 
 -   `font`: Font settings for text overlay
-    -   `files`: Dictionary of language-specific font files
+    -   `files`: Dictionary of language-specific font files (located in the `fonts/` directory)
         -   `default`: Default font file to use when no language-specific font is available
-        -   `[locale]`: Font file to use for specific locale (e.g., `ar` for Arabic)
+        -   `[locale]`: Font file to use for specific locale (e.g., `ar` for Arabic, `ko` for Korean)
     -   `size`: Font size in pixels
     -   `align`: Horizontal text alignment ("left", "center", "right")
     -   `vertical-align`: Vertical text alignment ("top", "middle", "bottom")
@@ -296,6 +304,32 @@ If the `export` section is not present, images will be saved as PNG (backwards c
         -   `r`: Red component (0-255)
         -   `g`: Green component (0-255)
         -   `b`: Blue component (0-255)
+
+#### Automatic Font Detection for PSD Processing
+
+When processing PSD files, the application automatically extracts the PostScript font name from TTF files using `fontTools`. This means you only need to configure `font.files` - the correct Photoshop font name is derived automatically.
+
+For example, with this configuration:
+```json
+{
+    "text": {
+        "font": {
+            "files": {
+                "default": "NotoSans-Bold.ttf",
+                "ko": "NotoSansKR-Bold.ttf",
+                "ja": "NotoSansJP-Bold.ttf"
+            }
+        }
+    }
+}
+```
+
+When processing a PSD for Korean (`ko`), the application will:
+1. Look up `NotoSansKR-Bold.ttf` from the `fonts/` directory
+2. Extract the PostScript name (e.g., `NotoSansKR-Bold`) using fontTools
+3. Apply that font to Photoshop text layers
+
+This ensures proper rendering of non-Latin scripts (Korean, Japanese, Chinese, Arabic, etc.) without manual font name configuration.
 
 If text settings are provided, the application will look for locale files in the `input/locales` directory. Each locale file should be a JSON file named with the locale code (e.g., `en.json`, `de.json`) and contain a dictionary of texts with keys in the format "Text_1", "Text_2", etc.
 
