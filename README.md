@@ -101,35 +101,7 @@ A Python application to crop screenshots based on JSON configuration.
 
     **Optional: Prepare PSD and export template**
 
-    To prepare a PSD file for localization by renaming text layers and exporting a template, use both `--screenshot` and `--prepare-and-export`:
-
-    ```
-    python main.py --directory path/to/your/directory --screenshot 5 --prepare-and-export
-    ```
-
-    This mode will:
-    1. Open the PSD file matching the screenshot number (e.g., `screenshot_05.psd`)
-    2. Traverse all text layers in the document (including nested groups)
-    3. Rename each text layer to `lang_[sanitized_text]` format based on the **text content** of the layer:
-       - Text is converted to lowercase
-       - Spaces are replaced with underscores
-       - Allowed characters: a-z, 0-9, underscore, dot, and hyphen
-       - Existing `lang_` prefixes are stripped (fixes already processed layers)
-       - Photoshop's ` copy` suffixes are stripped (e.g., "Button copy 2" → "button")
-       - Name is limited to 30 characters
-    4. Handle duplicate keys intelligently:
-       - Layers with identical text share the same key
-       - Layers with different text get numeric suffixes (`_2`, `_3`, etc.)
-    5. Export/update `output/template.json` with the sanitized names as keys and current text content as values
-    6. Save the modified PSD file
-
-    If `template.json` already exists, it will be updated with the new keys (existing keys are preserved or updated if they match).
-
-    Examples:
-    - A text layer with text "Share Video Link!" becomes `lang_share_video_link` in the PSD
-    - The template.json entry: `"share_video_link": "Share Video Link!"`
-    - Two layers with text "Vacation" share the same key: `"vacation": "Vacation"`
-    - Layers with "vacation" and "Vacation" get separate keys: `"vacation"` and `"vacation_2"`
+    To prepare a PSD file for localization by renaming text layers and exporting a template JSON file, use `--prepare-and-export`. See [docs/PREPARE_AND_EXPORT.md](docs/PREPARE_AND_EXPORT.md) for detailed documentation.
 
     **Visual Editor Mode**
 
