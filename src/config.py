@@ -1,38 +1,47 @@
 """
 Configuration handler for the Screenshot Cropper application.
 """
+from __future__ import annotations
+
 import json
 import logging
-from src.models.settings import CropSettings, BackgroundSettings, TextSettings, OverlaySettings, ExportSettings
+from typing import Any
+
+from src.models.settings import (
+    BackgroundSettings,
+    CropSettings,
+    ExportSettings,
+    OverlaySettings,
+    TextSettings,
+)
 
 logger = logging.getLogger("screenshot_cropper")
 
+
 class ConfigHandler:
     """Handler for configuration file operations."""
-    
-    def __init__(self, config_file):
-        """
-        Initialize the ConfigHandler.
-        
+
+    def __init__(self, config_file: str) -> None:
+        """Initialize the ConfigHandler.
+
         Args:
-            config_file (str): Path to the configuration file.
+            config_file: Path to the configuration file.
         """
         self.config_file = config_file
         self.config_data = self._load_config()
-    
-    def _load_config(self):
-        """
-        Load configuration from file.
-        
+
+    def _load_config(self) -> dict[str, Any]:
+        """Load configuration from file.
+
         Returns:
-            dict: Configuration data.
-        
+            Configuration data.
+
         Raises:
             FileNotFoundError: If the configuration file does not exist.
             json.JSONDecodeError: If the configuration file is not valid JSON.
         """
         try:
-            with open(self.config_file, 'r') as f:
+            with open(self.config_file, "r", encoding="utf-8") as f:
                 return json.load(f)
         except FileNotFoundError:
             logger.error(f"Configuration file not found: {self.config_file}")
@@ -40,16 +49,12 @@ class ConfigHandler:
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in configuration file: {e}")
             raise
-    
-    def get_crop_settings(self):
-        """
-        Get crop settings from configuration.
-        
+
+    def get_crop_settings(self) -> CropSettings | None:
+        """Get crop settings from configuration.
+
         Returns:
-            CropSettings: Crop settings object.
-        
-        Raises:
-            KeyError: If required crop settings are missing.
+            Crop settings object, or None if not configured.
         """
         try:
             # Check if crop settings are under the "crop" key
@@ -61,44 +66,42 @@ class ConfigHandler:
                 bottom = crop_data.get("bottom", 0)
             else:
                 # Fallback to old format for backward compatibility
-                logger.warning("Using deprecated JSON format. Please update to new format with 'crop' key.")
+                logger.warning(
+                    "Using deprecated JSON format. Please update to new format with 'crop' key."
+                )
                 top = self.config_data.get("top", 0)
                 left = self.config_data.get("left", 0)
                 right = self.config_data.get("right", 0)
                 bottom = self.config_data.get("bottom", 0)
-            
+
             return CropSettings(top=top, left=left, right=right, bottom=bottom)
         except KeyError as e:
             logger.error(f"Missing required crop setting: {e}")
-            raise
-    
-    def get_background_settings(self):
-        """
-        Get background settings from configuration.
-        
+            return None
+
+    def get_background_settings(self) -> BackgroundSettings | None:
+        """Get background settings from configuration.
+
         Returns:
-            BackgroundSettings: Background settings object, or None if not configured.
-        
-        Raises:
-            KeyError: If required background settings are missing.
+            Background settings object, or None if not configured.
         """
         try:
             # Check if background settings are present
             if "background" not in self.config_data:
                 return None
-            
+
             bg_data = self.config_data["background"]
-            
+
             # Check for required fields
             if "file" not in bg_data:
                 logger.error("Missing required background setting: file")
                 return None
-            
+
             # Get position settings
             position = bg_data.get("position", {})
             position_x = position.get("x", 0)
             position_y = position.get("y", 0)
-            
+
             # Get size settings
             size = bg_data.get("size", {})
             width = size.get("width", 100)
@@ -109,18 +112,17 @@ class ConfigHandler:
                 position_x=position_x,
                 position_y=position_y,
                 width=width,
-                height=height
+                height=height,
             )
         except KeyError as e:
             logger.error(f"Missing required background setting: {e}")
             return None
 
-    def get_overlay_settings(self):
-        """
-        Get overlay settings from configuration.
+    def get_overlay_settings(self) -> OverlaySettings | None:
+        """Get overlay settings from configuration.
 
         Returns:
-            OverlaySettings: Overlay settings object, or None if not configured.
+            Overlay settings object, or None if not configured.
         """
         try:
             # Check if overlay settings are present at top level
@@ -142,21 +144,17 @@ class ConfigHandler:
             return OverlaySettings(
                 file=overlay_data["file"],
                 position_x=position_x,
-                position_y=position_y
+                position_y=position_y,
             )
         except KeyError as e:
             logger.error(f"Missing required overlay setting: {e}")
             return None
 
-    def get_text_settings(self):
-        """
-        Get text settings from configuration.
+    def get_text_settings(self) -> TextSettings | None:
+        """Get text settings from configuration.
 
         Returns:
-            TextSettings: Text settings object, or None if not configured.
-
-        Raises:
-            KeyError: If required text settings are missing.
+            Text settings object, or None if not configured.
         """
         try:
             # Check if text settings are present
@@ -206,33 +204,31 @@ class ConfigHandler:
                 width=width,
                 height=height,
                 color=color,
-                font_names=font_names
+                font_names=font_names,
             )
         except KeyError as e:
             logger.error(f"Missing required text setting: {e}")
             return None
 
-    def get_directories(self):
-        """
-        Get directory settings from configuration.
+    def get_directories(self) -> dict[str, str | None]:
+        """Get directory settings from configuration.
 
         Returns:
-            dict: Dictionary with keys 'screenshots', 'locales', 'output'.
-                  Values are None if not configured.
+            Dictionary with keys 'screenshots', 'locales', 'output'.
+            Values are None if not configured.
         """
         directories = self.config_data.get("directories", {})
         return {
-            'screenshots': directories.get("screenshots"),
-            'locales': directories.get("locales"),
-            'output': directories.get("output")
+            "screenshots": directories.get("screenshots"),
+            "locales": directories.get("locales"),
+            "output": directories.get("output"),
         }
 
-    def get_export_settings(self):
-        """
-        Get export settings from configuration.
+    def get_export_settings(self) -> ExportSettings:
+        """Get export settings from configuration.
 
         Returns:
-            ExportSettings: Export settings object with format, quality, and keep_cropped.
+            Export settings object with format, quality, and keep_cropped.
         """
         if "export" not in self.config_data:
             return ExportSettings()  # defaults to PNG, quality 90, keep_cropped False
@@ -242,5 +238,5 @@ class ConfigHandler:
             format=export_data.get("format", "png"),
             quality=export_data.get("quality", 90),
             keep_cropped=export_data.get("keep_cropped", False),
-            lossless=export_data.get("lossless", False)
+            lossless=export_data.get("lossless", False),
         )

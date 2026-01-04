@@ -1,2 +1,4 @@
+# Requires Python 3.11+
 Pillow==10.2.0
 photoshop-python-api>=0.22.5
+fonttools>=4.0.0
