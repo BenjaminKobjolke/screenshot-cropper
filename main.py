@@ -17,12 +17,14 @@ from src.filename_utils import extract_screenshot_number
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Crop screenshots based on JSON configuration.")
-    group = parser.add_mutually_exclusive_group(required=True)
+    group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument("--directory", help="Directory containing input folder and configuration file")
     group.add_argument("--config", help="Path to configuration JSON file (directories specified in JSON)")
+    parser.add_argument("--file", help="Direct path to PSD file (for use with --prepare-and-export)")
+    parser.add_argument("--output", help="Direct path for JSON output file (for use with --prepare-and-export)")
     parser.add_argument("--screenshot", type=int, help="Process only the specified screenshot number (e.g., 7 for '7.png')")
     parser.add_argument("--language", type=str, help="Process only the specified language (e.g., 'en', 'de')")
-    parser.add_argument("--prepare-and-export", action="store_true", help="Prepare PSD by renaming text layers and export template.json (requires --screenshot)")
+    parser.add_argument("--prepare-and-export", action="store_true", help="Prepare PSD by renaming text layers and export template.json")
     parser.add_argument("--skip-existing", action="store_true", help="Skip processing for languages where output file already exists")
     parser.add_argument("--editor", action="store_true", help="Launch visual editor to configure positions and sizes")
     return parser.parse_args()
@@ -40,9 +42,61 @@ def main():
     skip_existing = args.skip_existing
 
     # Validate arguments
-    if prepare_and_export and screenshot_filter is None:
-        logger.error("--prepare-and-export requires --screenshot to be specified")
+    if prepare_and_export:
+        # Two valid modes for prepare-and-export:
+        # Mode A: --file + --output (direct paths)
+        # Mode B: --directory + --screenshot (directory-based discovery)
+        has_direct_mode = args.file and args.output
+        has_directory_mode = args.directory and screenshot_filter is not None
+
+        if not has_direct_mode and not has_directory_mode:
+            logger.error("--prepare-and-export requires either (--file and --output) or (--directory and --screenshot)")
+            sys.exit(1)
+
+        if args.file and not args.output:
+            logger.error("--file requires --output to be specified")
+            sys.exit(1)
+
+        if args.output and not args.file:
+            logger.error("--output requires --file to be specified")
+            sys.exit(1)
+
+    # For non-prepare-and-export modes, require --directory or --config
+    if not prepare_and_export and not args.directory and not args.config:
+        logger.error("Either --directory or --config is required")
         sys.exit(1)
+
+    # Handle direct path mode for prepare-and-export (--file + --output)
+    # This must come before directory setup since it doesn't use --directory
+    if prepare_and_export and args.file and args.output:
+        logger.info("Running in prepare-and-export mode (direct path)")
+
+        psd_file = args.file
+        output_json_path = args.output
+
+        if not os.path.isfile(psd_file):
+            logger.error(f"PSD file not found: {psd_file}")
+            sys.exit(1)
+
+        logger.info(f"PSD file: {psd_file}")
+        logger.info(f"Output JSON: {output_json_path}")
+
+        # Auto-create output directory if it doesn't exist
+        output_dir_for_json = os.path.dirname(output_json_path)
+        if output_dir_for_json and not os.path.exists(output_dir_for_json):
+            os.makedirs(output_dir_for_json)
+            logger.info(f"Created output directory: {output_dir_for_json}")
+
+        # Initialize PSD processor and run prepare and export
+        psd_processor = PSDProcessor()
+        success = psd_processor.prepare_and_export_template(psd_file, output_json_path)
+
+        if success:
+            logger.info("Successfully prepared PSD and exported template")
+            sys.exit(0)
+        else:
+            logger.error("Failed to prepare PSD and export template")
+            sys.exit(1)
 
     # Handle --editor mode
     if args.editor:
@@ -124,9 +178,9 @@ def main():
         logger.error(f"Input directory '{input_dir}' does not exist")
         sys.exit(1)
 
-    # Handle prepare-and-export mode
+    # Handle prepare-and-export mode (directory-based mode only - direct path mode handled earlier)
     if prepare_and_export:
-        logger.info("Running in prepare-and-export mode")
+        logger.info("Running in prepare-and-export mode (directory-based)")
 
         # Find the PSD file matching the screenshot filter
         psd_file = None
