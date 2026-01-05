@@ -5,9 +5,10 @@ import logging
 import os
 import sys
 
+from adobe_document_handler import PSDProcessor
+
 from src.constants import CONFIG, FILE_EXT
 from src.filename_utils import extract_screenshot_number
-from src.psd_processor import PSDProcessor
 
 
 def run_prepare_export_direct(
@@ -44,7 +45,7 @@ def run_prepare_export_direct(
 
     if file_lower.endswith(FILE_EXT.INDD):
         # InDesign file
-        from src.indesign_processor import InDesignProcessor
+        from adobe_document_handler import InDesignProcessor
         processor = InDesignProcessor()
         success = processor.prepare_and_export_template(design_file, output_json)
         file_type = "INDD"

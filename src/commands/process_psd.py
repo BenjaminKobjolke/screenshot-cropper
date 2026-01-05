@@ -4,11 +4,11 @@ from __future__ import annotations
 import logging
 import os
 
+from adobe_document_handler import LocaleHandler, PSDProcessor
+
 from src.constants import DIRS, FILE_EXT
 from src.filename_utils import extract_screenshot_number
-from src.locale_handler import LocaleHandler
 from src.models.settings import TextSettings
-from src.psd_processor import PSDProcessor
 
 
 def run_psd_processing(

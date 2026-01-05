@@ -4,9 +4,10 @@ from __future__ import annotations
 import logging
 import os
 
+from adobe_document_handler import LocaleHandler
+
 from src.config import ConfigHandler
 from src.image_processor import ImageProcessor
-from src.locale_handler import LocaleHandler
 from src.models.settings import (
     BackgroundSettings,
     CropSettings,
