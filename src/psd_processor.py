@@ -806,6 +806,13 @@ class PSDProcessor:
                 doc = ps.active_document
                 logger.info(f"Successfully opened PSD file in Photoshop: {abs_psd_path}")
 
+                # Add metadata to template
+                template["_meta"] = {
+                    "application": "Adobe Photoshop",
+                    "version": str(ps_version),
+                    "sourceFile": os.path.basename(abs_psd_path),
+                }
+
                 # Process all text layers
                 self._prepare_layers(ps, doc, template)
 
