@@ -11,14 +11,14 @@ from src.psd_processor import PSDProcessor
 
 
 def run_prepare_export_direct(
-    psd_file: str,
+    design_file: str,
     output_json: str,
     logger: logging.Logger
 ) -> None:
     """Run prepare-and-export with direct file paths.
 
     Args:
-        psd_file: Path to the PSD file.
+        design_file: Path to the PSD or INDD file.
         output_json: Path for the output JSON file.
         logger: Logger instance.
 
@@ -26,11 +26,11 @@ def run_prepare_export_direct(
     """
     logger.info("Running in prepare-and-export mode (direct path)")
 
-    if not os.path.isfile(psd_file):
-        logger.error(f"PSD file not found: {psd_file}")
+    if not os.path.isfile(design_file):
+        logger.error(f"Design file not found: {design_file}")
         sys.exit(1)
 
-    logger.info(f"PSD file: {psd_file}")
+    logger.info(f"Design file: {design_file}")
     logger.info(f"Output JSON: {output_json}")
 
     # Auto-create output directory if it doesn't exist
@@ -39,15 +39,32 @@ def run_prepare_export_direct(
         os.makedirs(output_dir)
         logger.info(f"Created output directory: {output_dir}")
 
-    # Initialize PSD processor and run prepare and export
-    psd_processor = PSDProcessor()
-    success = psd_processor.prepare_and_export_template(psd_file, output_json)
+    # Detect file type and use appropriate processor
+    file_lower = design_file.lower()
+
+    if file_lower.endswith(FILE_EXT.INDD):
+        # InDesign file
+        from src.indesign_processor import InDesignProcessor
+        processor = InDesignProcessor()
+        success = processor.prepare_and_export_template(design_file, output_json)
+        file_type = "INDD"
+    elif file_lower.endswith(FILE_EXT.PSD):
+        # Photoshop file
+        processor = PSDProcessor()
+        success = processor.prepare_and_export_template(design_file, output_json)
+        file_type = "PSD"
+    else:
+        logger.error(
+            f"Unsupported file type: {design_file}. "
+            f"Supported: {FILE_EXT.PSD}, {FILE_EXT.INDD}"
+        )
+        sys.exit(1)
 
     if success:
-        logger.info("Successfully prepared PSD and exported template")
+        logger.info(f"Successfully prepared {file_type} and exported template")
         sys.exit(0)
     else:
-        logger.error("Failed to prepare PSD and export template")
+        logger.error(f"Failed to prepare {file_type} and export template")
         sys.exit(1)
 
 

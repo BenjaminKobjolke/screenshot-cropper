@@ -8,6 +8,7 @@ from dataclasses import dataclass
 class FileExtensions:
     """File extension constants."""
     PSD: str = ".psd"
+    INDD: str = ".indd"
     PNG: str = ".png"
     WEBP: str = ".webp"
     JSON: str = ".json"

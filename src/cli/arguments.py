@@ -27,7 +27,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--file",
-        help="Direct path to PSD file (for use with --prepare-and-export)"
+        help="Direct path to PSD or INDD file (for use with --prepare-and-export)"
     )
     parser.add_argument(
         "--output",
@@ -46,7 +46,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--prepare-and-export",
         action="store_true",
-        help="Prepare PSD by renaming text layers and export template.json"
+        help="Prepare PSD/INDD by renaming text layers/frames and export template.json"
+    )
+    parser.add_argument(
+        "--list-indesign-versions",
+        action="store_true",
+        help="List available InDesign versions for COM automation"
     )
     parser.add_argument(
         "--skip-existing",
@@ -94,6 +99,10 @@ def validate_arguments(args: argparse.Namespace, logger: logging.Logger) -> None
         if args.output and not args.file:
             logger.error("--output requires --file to be specified")
             sys.exit(1)
+
+    # --list-indesign-versions can run standalone
+    if getattr(args, "list_indesign_versions", False):
+        return
 
     # For non-prepare-and-export modes, require --directory or --config
     if not prepare_and_export and not args.directory and not args.config:

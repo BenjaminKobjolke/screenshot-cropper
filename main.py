@@ -28,6 +28,12 @@ def main() -> None:
     args = parse_arguments()
     validate_arguments(args, logger)
 
+    # Handle --list-indesign-versions (standalone command)
+    if getattr(args, "list_indesign_versions", False):
+        from src.indesign_processor import InDesignProcessor
+        InDesignProcessor.list_available_versions()
+        return
+
     screenshot_filter = args.screenshot
     language_filter = args.language
     prepare_and_export = args.prepare_and_export
