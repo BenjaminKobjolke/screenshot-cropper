@@ -17,28 +17,49 @@ A Python application to crop screenshots based on JSON configuration.
 
 ## Requirements
 
--   Python 3.6 or higher
+-   Python 3.11 or higher
 -   Pillow library
--   fontTools (for automatic font name detection in PSD processing)
--   photoshop-python-api (optional, for advanced PSD processing)
+-   [adobe-document-handler](https://github.com/BenjaminKobjolke/adobe-document-handler) - Handles PSD and InDesign text layer processing, localization, and font management
 
 ## Installation
+
+### For Users
 
 1. Clone this repository:
 
     ```
-    git clone https://github.com/yourusername/screenshot-cropper.git
+    git clone https://github.com/BenjaminKobjolke/screenshot-cropper.git
     cd screenshot-cropper
     ```
 
-2. Create a virtual environment (optional but recommended):
+2. Run the installation script:
+
+    ```
+    install.bat
+    ```
+
+    This creates a virtual environment and installs all dependencies including `adobe-document-handler` from GitHub.
+
+### For Developers
+
+If you're developing locally and have `adobe-document-handler` cloned as a sibling directory:
+
+```
+install_local.bat
+```
+
+This installs `adobe-document-handler` in editable mode from `../adobe-document-handler`, allowing you to modify both projects simultaneously.
+
+### Manual Installation
+
+1. Create a virtual environment:
 
     ```
     python -m venv venv
     venv\Scripts\activate
     ```
 
-3. Install dependencies:
+2. Install dependencies:
     ```
     pip install -r requirements.txt
     ```
