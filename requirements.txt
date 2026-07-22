@@ -1,3 +1,0 @@
-# Requires Python 3.11+
-Pillow==10.2.0
-adobe-document-handler[all] @ git+https://github.com/BenjaminKobjolke/adobe-document-handler.git

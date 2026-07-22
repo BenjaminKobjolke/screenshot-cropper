@@ -18,6 +18,7 @@ A Python application to crop screenshots based on JSON configuration.
 ## Requirements
 
 -   Python 3.11 or higher
+-   [uv](https://docs.astral.sh/uv/getting-started/installation/)
 -   Pillow library
 -   [adobe-document-handler](https://github.com/BenjaminKobjolke/adobe-document-handler) - Handles PSD and InDesign text layer processing, localization, and font management
 
@@ -38,7 +39,7 @@ A Python application to crop screenshots based on JSON configuration.
     install.bat
     ```
 
-    This creates a virtual environment and installs all dependencies including `adobe-document-handler` from GitHub.
+    This creates the virtual environment via `uv sync` and installs all dependencies including `adobe-document-handler` from GitHub.
 
 ### For Developers
 
@@ -48,21 +49,26 @@ If you're developing locally and have `adobe-document-handler` cloned as a sibli
 install_local.bat
 ```
 
-This installs `adobe-document-handler` in editable mode from `../adobe-document-handler`, allowing you to modify both projects simultaneously.
+This installs `adobe-document-handler` in editable mode from `../adobe-document-handler`, allowing you to modify both projects simultaneously. Note: a later `uv sync` reverts it to the git version — re-run `install_local.bat` afterwards.
 
 ### Manual Installation
 
-1. Create a virtual environment:
+```
+uv sync --all-extras
+```
 
-    ```
-    python -m venv venv
-    venv\Scripts\activate
-    ```
+### Updating Dependencies
 
-2. Install dependencies:
-    ```
-    pip install -r requirements.txt
-    ```
+```
+update.bat
+```
+
+### Running Tests
+
+```
+tools\run_tests.bat
+tools\run_integration_tests.bat
+```
 
 ## Usage
 
@@ -75,7 +81,7 @@ This installs `adobe-document-handler` in editable mode from `../adobe-document-
 2. Run the application:
 
     ```
-    python main.py --directory path/to/your/directory
+    uv run python main.py --directory path/to/your/directory
     ```
 
     **Optional: Process a specific screenshot only**
@@ -83,7 +89,7 @@ This installs `adobe-document-handler` in editable mode from `../adobe-document-
     To process only a single screenshot by its number, use the `--screenshot` argument:
 
     ```
-    python main.py --directory path/to/your/directory --screenshot 7
+    uv run python main.py --directory path/to/your/directory --screenshot 7
     ```
 
     This will only process files with the number 7 in their filename, such as:
@@ -98,7 +104,7 @@ This installs `adobe-document-handler` in editable mode from `../adobe-document-
     To process only a single language, use the `--language` argument:
 
     ```
-    python main.py --directory path/to/your/directory --language ar
+    uv run python main.py --directory path/to/your/directory --language ar
     ```
 
     This will only process the Arabic (ar) locale, skipping all other languages.
@@ -108,7 +114,7 @@ This installs `adobe-document-handler` in editable mode from `../adobe-document-
     To skip processing for languages where output files already exist, use the `--skip-existing` flag:
 
     ```
-    python main.py --directory path/to/your/directory --skip-existing
+    uv run python main.py --directory path/to/your/directory --skip-existing
     ```
 
     This is useful for incremental processing:
@@ -117,7 +123,7 @@ This installs `adobe-document-handler` in editable mode from `../adobe-document-
     - For PSD files, if all languages are skipped, Photoshop won't be opened at all
     - Can be combined with other flags:
       ```
-      python main.py --directory path/to/your/directory --screenshot 5 --skip-existing
+      uv run python main.py --directory path/to/your/directory --screenshot 5 --skip-existing
       ```
 
     **Optional: Prepare PSD and export template**
@@ -129,7 +135,7 @@ This installs `adobe-document-handler` in editable mode from `../adobe-document-
     To visually configure crop settings, screenshot position, and size without manually editing the JSON, use the `--editor` flag:
 
     ```
-    python main.py --directory path/to/your/directory --editor
+    uv run python main.py --directory path/to/your/directory --editor
     ```
 
     This launches a GUI window where you can:
@@ -156,6 +162,8 @@ This installs `adobe-document-handler` in editable mode from `../adobe-document-
 3. Cropped images will be saved in an `output` subdirectory.
 
 ## Configuration (`screenshot-cropper.json`)
+
+Ready-to-copy example configs and locale files live in [examples/](examples/).
 
 The `screenshot-cropper.json` file is used to configure cropping, background placement, and text overlays for images in the `input/screenshots/` directory. It also provides font settings that can be used by the PSD processor if text layers are being translated.
 
@@ -416,7 +424,7 @@ my-screenshots/
 Run:
 
 ```
-python main.py --directory my-screenshots
+uv run python main.py --directory my-screenshots
 ```
 
 The processed images will be saved in:

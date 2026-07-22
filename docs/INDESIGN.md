@@ -5,17 +5,15 @@ This tool supports Adobe InDesign (.indd) files in addition to Photoshop (.psd) 
 ## Prerequisites
 
 1. **Adobe InDesign** must be installed on your system
-2. **pypiwin32** package for COM automation:
-   ```bash
-   pip install pypiwin32
-   ```
+2. **pypiwin32** package for COM automation — installed automatically by
+   `install.bat` / `uv sync` (comes with `adobe-document-handler[all]`)
 
 ## Finding Your InDesign Version
 
 Use the `--list-indesign-versions` command to detect available InDesign installations:
 
 ```bash
-python main.py --list-indesign-versions
+uv run python main.py --list-indesign-versions
 ```
 
 Example output:
@@ -39,7 +37,7 @@ The tool automatically detects and uses the first available InDesign version.
 Specify the InDesign file and output JSON path directly:
 
 ```bash
-python main.py --file="path/to/poster.indd" --output="path/to/template.json" --prepare-and-export
+uv run python main.py --file="path/to/poster.indd" --output="path/to/template.json" --prepare-and-export
 ```
 
 ### What This Mode Does
@@ -145,9 +143,10 @@ Each text range includes:
 
 ### "win32com not available" Error
 
-Install the pypiwin32 package:
+pypiwin32 should be installed by `uv sync` (part of `adobe-document-handler[all]`).
+Re-run `install.bat`, or add it explicitly:
 ```bash
-pip install pypiwin32
+uv add pypiwin32
 ```
 
 ### "Could not connect to InDesign" Error

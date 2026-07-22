@@ -11,7 +11,7 @@ There are two ways to use this mode:
 Specify the PSD file and output JSON path directly:
 
 ```bash
-python main.py --file="path/to/screenshot.psd" --output="path/to/template.json" --prepare-and-export
+uv run python main.py --file="path/to/screenshot.psd" --output="path/to/template.json" --prepare-and-export
 ```
 
 ### Directory Mode
@@ -19,7 +19,7 @@ python main.py --file="path/to/screenshot.psd" --output="path/to/template.json" 
 Use a directory structure with screenshot number:
 
 ```bash
-python main.py --directory path/to/your/directory --screenshot 5 --prepare-and-export
+uv run python main.py --directory path/to/your/directory --screenshot 5 --prepare-and-export
 ```
 
 This will:
