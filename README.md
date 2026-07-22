@@ -5,13 +5,15 @@ A Python application to crop screenshots based on JSON configuration.
 ## Features
 
 -   Crop multiple PNG, JPG, and PSD images at once
--   Place cropped images on a background image
--   Add localized text overlays to images
+-   Place cropped images on a background image, with optional overlay frame on top
+-   **Screenshot mask**: punch out screenshot pixels via a canvas-aligned mask image (e.g. phone-shaped window)
+-   **Final crop**: trim the finished composite as a last step
+-   Add localized text overlays (per-locale fonts, alignment, configurable line height, can be disabled via `text.enabled`)
 -   Process PSD files with text layer translation
 -   Generate multiple language versions of each image
--   Configure crop, background, and text settings via JSON
+-   Configure everything via `screenshot-cropper.json`
 -   **Export to PNG or WebP** with configurable quality settings
--   **Visual Editor** for interactive configuration of crop, position, and size settings
+-   **Visual Editor** ([docs/EDITOR.md](docs/EDITOR.md)): PySide6 GUI with live preview, edits every config value, adds/removes optional sections, start page with recent projects (`editor.bat`)
 -   Automatically create output directory
 -   Detailed logging
 
@@ -138,26 +140,23 @@ tools\run_integration_tests.bat
     uv run python main.py --directory path/to/your/directory --editor
     ```
 
-    This launches a GUI window where you can:
+    Or use the shortcut batch file (defaults to the current directory when no argument is given):
 
-    -   **Adjust crop settings**: Set top, left, right, and bottom crop values with instant preview
-    -   **Position the screenshot**: Drag or use spinboxes to set where the cropped screenshot appears on the background
-    -   **Scale the screenshot**: Adjust width (height auto-calculated to preserve aspect ratio)
-    -   **Position the overlay**: If an overlay is configured, adjust its position
+    ```
+    editor.bat "path\to\your\directory"
+    ```
 
-    **Editor Controls:**
+    This launches a PySide6 GUI with a live preview (debounced ~300ms) that is rendered by the same compositing pipeline as the real output — including text overlays. You can edit every config value:
 
-    -   **Click** on a layer to select it
-    -   **Drag** to move the selected layer
-    -   **Mouse wheel** on screenshot to adjust its width
-    -   **Arrow keys**: Nudge selected layer by 1 pixel
-    -   **Shift+Arrow keys**: Nudge by 10 pixels
-    -   **Ctrl+S**: Save configuration to JSON
-    -   **Zoom controls**: Adjust preview zoom level
+    -   **Crop**: top, left, right, bottom insets
+    -   **Background / screenshot placement**: background file, position X/Y, screenshot width (height follows aspect ratio)
+    -   **Overlay**: file and position
+    -   **Text**: font size, box X/Y/width/height, align, vertical align, color, default font file
+    -   **Export**: format (png/webp), quality, lossless, keep cropped copies
 
-    The editor requires at least a background image (`bg.png` or as specified in config) and a screenshot in `input/screenshots/` to preview. Place a sample image (PNG/JPG) in the screenshots folder before launching the editor.
+    A toolbar selects which screenshot and locale to preview (PSD screenshots are previewed via their flattened composite — Photoshop is not launched). `File > Open Directory...` switches projects; **Ctrl+S** saves back to `screenshot-cropper.json`, preserving all keys the editor does not manage (e.g. `directories`, per-locale font files).
 
-    Changes are saved directly to `screenshot-cropper.json` when you click Save or press Ctrl+S.
+    See [docs/EDITOR.md](docs/EDITOR.md) for full documentation.
 
 3. Cropped images will be saved in an `output` subdirectory.
 
@@ -213,12 +212,48 @@ The file should have the following structure:
 }
 ```
 
-### Crop Settings
+### Crop Settings (`crop`)
+
+Crops the **screenshot** before it is placed on the background:
 
 -   `top`: Number of pixels to crop from the top
 -   `left`: Number of pixels to crop from the left
 -   `right`: Number of pixels to crop from the right
 -   `bottom`: Number of pixels to crop from the bottom
+
+### Screenshot Mask Settings (`screenshot_mask`, Optional)
+
+An image whose **non-transparent pixels are subtracted from the screenshot** — where the mask is opaque, the screenshot becomes transparent (e.g. to cut rounded corners or a camera notch before the screenshot is placed in the frame):
+
+```json
+{
+    "screenshot_mask": {
+        "file": "mask.png"
+    }
+}
+```
+
+-   `file`: Mask image in the `input/` directory
+-   The mask aligns with the **output canvas** (the background image; author it at background size, e.g. exported from the layout PSD). Without a background it aligns with the cropped screenshot. If dimensions differ it is scaled to fit
+-   Only the screenshot is masked — background, text, and overlay are unaffected
+-   Partial transparency subtracts proportionally (anti-aliased mask edges stay smooth)
+
+### Final Crop Settings (`final_crop`, Optional)
+
+Crops the **finished composite image** as the very last step (after background, text, and overlay). Same keys as `crop`:
+
+```json
+{
+    "final_crop": {
+        "top": 0,
+        "left": 0,
+        "right": 0,
+        "bottom": 120
+    }
+}
+```
+
+If omitted (or all values are 0), the final image is not cropped.
 
 ### Background Settings (Optional)
 
@@ -290,11 +325,13 @@ If the `export` section is not present, images will be saved as PNG (backwards c
 
 ### Text Settings (Optional, within `screenshot-cropper.json`)
 
+-   `enabled`: Optional, set to `false` to disable text rendering entirely (the `text` object is ignored when creating screenshots). Absent or `true` = text is rendered
 -   `font`: Font settings for text overlay
     -   `files`: Dictionary of language-specific font files (located in the `fonts/` directory)
         -   `default`: Default font file to use when no language-specific font is available
         -   `[locale]`: Font file to use for specific locale (e.g., `ar` for Arabic, `ko` for Korean)
     -   `size`: Font size in pixels
+    -   `line-height`: Optional line height as a multiplier of the font size (e.g. `1.2` = 120% of font size per line). Omit for automatic spacing (font metrics + 20% of font size)
     -   `align`: Horizontal text alignment ("left", "center", "right")
     -   `vertical-align`: Vertical text alignment ("top", "middle", "bottom")
     -   `x`: X-coordinate for text position
@@ -411,6 +448,8 @@ For a directory structure:
 my-screenshots/
 ├── input/
 │   ├── bg.png                     # Optional: Background for screenshots
+│   ├── overlay.png                # Optional: Overlay pasted on top (e.g. phone frame)
+│   ├── mask.png                   # Optional: Screenshot mask (canvas-aligned punch-out)
 │   ├── locales/                   # Optional: Locale files for text
 │   │   ├── en.json
 │   │   └── de.json

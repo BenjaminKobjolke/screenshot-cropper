@@ -90,6 +90,12 @@ class OverlaySettings:
 
 
 @dataclass
+class ScreenshotMaskSettings:
+    """Settings for the screenshot mask (opaque mask pixels punch holes)."""
+    file: str
+
+
+@dataclass
 class ExportSettings:
     """Settings for export format and quality."""
     format: str = FORMATS.PNG
@@ -127,6 +133,8 @@ class TextSettings:
     vertical_align: str = ALIGN.TOP
     color: tuple[int, int, int] = (0, 0, 0)
     font_names: dict[str, str] = field(default_factory=dict)
+    line_height: float | None = None
+    enabled: bool = True
 
     def __post_init__(self) -> None:
         """Validate settings after initialization."""
@@ -140,6 +148,9 @@ class TextSettings:
         if self.font_size <= 0:
             logger.warning(f"Invalid font_size value: {self.font_size}, setting to 24")
             object.__setattr__(self, "font_size", 24)
+        if self.line_height is not None and self.line_height <= 0:
+            logger.warning(f"Invalid line_height value: {self.line_height}, using auto")
+            object.__setattr__(self, "line_height", None)
 
         valid_h_aligns = [ALIGN.LEFT, ALIGN.CENTER, ALIGN.RIGHT]
         if self.align not in valid_h_aligns:

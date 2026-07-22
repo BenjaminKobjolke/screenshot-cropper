@@ -8,14 +8,14 @@ import os.path
 from adobe_document_handler import PSDProcessor
 
 from src.image_compositor import ImageCompositor
-from src.filename_utils import extract_screenshot_number
+from src.filename_utils import extract_screenshot_number, resolve_text_index
 
 logger = logging.getLogger("screenshot_cropper")
 
 class ImageProcessor:
     """Handler for image processing operations."""
 
-    def __init__(self, input_dir, output_dir, crop_settings, background_settings=None, text_processor=None, locale_handler=None, screenshot_filter=None, skip_existing=False, overlay_settings=None, export_settings=None):
+    def __init__(self, input_dir, output_dir, crop_settings, background_settings=None, text_processor=None, locale_handler=None, screenshot_filter=None, skip_existing=False, overlay_settings=None, export_settings=None, final_crop_settings=None, mask_settings=None):
         """
         Initialize the ImageProcessor.
 
@@ -30,6 +30,8 @@ class ImageProcessor:
             skip_existing (bool, optional): Skip processing if output file already exists.
             overlay_settings (OverlaySettings, optional): Overlay settings to apply.
             export_settings (ExportSettings, optional): Export format and quality settings.
+            final_crop_settings (CropSettings, optional): Crop applied to the final composite.
+            mask_settings (ScreenshotMaskSettings, optional): Screenshot mask settings.
         """
         self.input_dir = input_dir
         self.output_dir = output_dir
@@ -54,7 +56,7 @@ class ImageProcessor:
         # Initialize image compositor for consistent image processing
         # Pass the directory containing the input and output directories as the base directory
         base_dir = os.path.dirname(os.path.dirname(input_dir))
-        self.image_compositor = ImageCompositor(crop_settings, background_settings, text_processor, base_dir, overlay_settings, export_settings, output_dir)
+        self.image_compositor = ImageCompositor(crop_settings, background_settings, text_processor, base_dir, overlay_settings, export_settings, output_dir, final_crop_settings, mask_settings)
         logger.info(f"Initialized image compositor with base directory: {base_dir}")
 
     def _get_output_extension(self):
@@ -92,9 +94,7 @@ class ImageProcessor:
                 # Process PSD files efficiently (all locales at once per PSD)
                 for i, psd_file in enumerate(psd_files):
                     filename = os.path.basename(psd_file)
-                    screenshot_num = extract_screenshot_number(filename)
-                    text_index = screenshot_num if screenshot_num is not None else i
-                    add_one = screenshot_num is None
+                    text_index, add_one = resolve_text_index(filename, i)
 
                     logger.info(f"Processing PSD file {filename} (index: {text_index}, add_one: {add_one}) for all locales")
                     try:
@@ -106,9 +106,7 @@ class ImageProcessor:
                 # Process regular image files (one locale at a time)
                 for i, image_file in enumerate(regular_files):
                     filename = os.path.basename(image_file)
-                    screenshot_num = extract_screenshot_number(filename)
-                    text_index = screenshot_num if screenshot_num is not None else i + len(psd_files)
-                    add_one = screenshot_num is None
+                    text_index, add_one = resolve_text_index(filename, i + len(psd_files))
 
                     for locale in locales:
                         # Check if we should skip this locale for this image

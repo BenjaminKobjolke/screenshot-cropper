@@ -24,6 +24,6 @@ def run_editor(directory: str, logger: logging.Logger) -> None:
     config_file = os.path.join(directory, CONFIG.CONFIG_FILE)
     logger.info(f"Launching visual editor for: {directory}")
 
-    from src.editor.editor_window import launch_editor
+    from src.editor.app import launch_editor
     launch_editor(directory, config_file)
     sys.exit(0)

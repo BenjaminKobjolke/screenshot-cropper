@@ -35,3 +35,22 @@ def extract_screenshot_number(filename: str) -> int | None:
         return int(match.group(1))
 
     return None
+
+
+def resolve_text_index(filename: str, fallback_index: int) -> tuple[int, bool]:
+    """Resolve which locale text index a screenshot maps to.
+
+    Numbered filenames use their number directly; unnumbered files use the
+    positional fallback and locale lookup adds one (legacy Text_{n+1} keys).
+
+    Args:
+        filename: The screenshot filename.
+        fallback_index: Positional index used when the filename has no number.
+
+    Returns:
+        Tuple of (text_index, add_one).
+    """
+    screenshot_num = extract_screenshot_number(filename)
+    if screenshot_num is not None:
+        return screenshot_num, False
+    return fallback_index, True

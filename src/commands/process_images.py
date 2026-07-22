@@ -13,6 +13,7 @@ from src.models.settings import (
     CropSettings,
     ExportSettings,
     OverlaySettings,
+    ScreenshotMaskSettings,
     TextSettings,
 )
 from src.text_processor import TextProcessor
@@ -45,6 +46,8 @@ def run_image_processing(
     """
     # Initialize settings
     crop_settings: CropSettings | None = None
+    final_crop_settings: CropSettings | None = None
+    mask_settings: ScreenshotMaskSettings | None = None
     background_settings: BackgroundSettings | None = None
     text_settings: TextSettings | None = None
     overlay_settings: OverlaySettings | None = None
@@ -75,6 +78,16 @@ def run_image_processing(
                 logger.warning(
                     f"No crop settings found in '{config_file}'. Cropping will be skipped."
                 )
+
+            # Load final crop settings (applied to the finished composite)
+            final_crop_settings = config_handler.get_final_crop_settings()
+            if final_crop_settings:
+                logger.info(f"Loaded final crop settings: {final_crop_settings}")
+
+            # Load screenshot mask settings
+            mask_settings = config_handler.get_screenshot_mask_settings()
+            if mask_settings:
+                logger.info(f"Loaded screenshot mask settings: {mask_settings}")
 
             # Load background settings
             current_background_settings = config_handler.get_background_settings()
@@ -118,6 +131,8 @@ def run_image_processing(
                 "Cropping, background, and text overlay will be skipped."
             )
             crop_settings = None
+            final_crop_settings = None
+            mask_settings = None
             background_settings = None
             text_settings = None
             overlay_settings = None
@@ -160,6 +175,8 @@ def run_image_processing(
                 skip_existing,
                 overlay_settings,
                 export_settings,
+                final_crop_settings,
+                mask_settings,
             )
             processed_count = image_processor.process_images()
             logger.info(f"Successfully processed {processed_count} images for cropping/text.")

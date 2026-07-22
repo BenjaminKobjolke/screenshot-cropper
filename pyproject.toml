@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "pillow>=11.0",
     "adobe-document-handler[all] @ git+https://github.com/BenjaminKobjolke/adobe-document-handler.git",
+    "pyside6>=6.11.1",
 ]
 
 [dependency-groups]

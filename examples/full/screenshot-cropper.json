@@ -5,6 +5,12 @@
         "right": 0,
         "bottom": 150
     },
+    "final_crop": {
+        "top": 0,
+        "left": 0,
+        "right": 0,
+        "bottom": 0
+    },
     "background": {
         "file": "bg.png",
         "position": {
@@ -23,6 +29,9 @@
             "y": 0
         }
     },
+    "screenshot_mask": {
+        "file": "mask.png"
+    },
     "text": {
         "font": {
             "files": {
@@ -40,6 +49,7 @@
                 "zh": "NotoSansSC-Bold.ttf"
             },
             "size": 100,
+            "line-height": 1.2,
             "align": "center",
             "vertical-align": "middle",
             "x": 0,

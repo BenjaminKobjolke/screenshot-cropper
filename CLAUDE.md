@@ -7,6 +7,8 @@ Condensed from `D:\GIT\BenjaminKobjolke\claude-code\coding-rules\COMMON_RULES.md
 
 CLI tool that crops/composites screenshots based on JSON configuration.
 Entry point: `main.py`. Package code in `src/`. Run with `uv run python main.py --directory <dir>`.
+Visual editor (PySide6, `src/editor/`): `main.py --editor --directory <dir>` or `editor.bat` — see `docs/EDITOR.md`.
+Compositing core: `ImageCompositor.compose()` in `src/image_compositor.py` (in-memory, shared by pipeline and editor preview). Config round-trip writing: `src/config_writer.py`.
 
 ## Tooling (uv)
 

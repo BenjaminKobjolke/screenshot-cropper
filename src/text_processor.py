@@ -34,6 +34,10 @@ class TextProcessor:
         """
         if not self.text_settings or not text:
             return img
+
+        if not self.text_settings.enabled:
+            logger.info("Text rendering disabled via settings, skipping text overlay")
+            return img
         
         logger.info(f"Drawing text: '{text}'")
         
@@ -63,8 +67,8 @@ class TextProcessor:
         # Create font object
         font = self._load_font(font_file)
         
-        # Get text dimensions measurement functions
-        get_text_width, get_text_height = self._get_text_measurement_functions(draw, font)
+        # Get text width measurement function
+        get_text_width = self._get_text_width_function(draw, font)
         
         # Split text by newline characters first
         paragraphs = text.split('\n')
@@ -94,15 +98,23 @@ class TextProcessor:
         
         logger.info(f"Total lines after handling newlines and wrapping: {len(lines)}")
         
-        # Calculate line heights
-        line_heights = [get_text_height(line) for line in lines]
-        total_text_height = sum(line_heights)
-        
-        # Add some spacing between lines (20% of font size)
-        line_spacing = int(self.text_settings.font_size * 0.2)
-        if len(lines) > 1:
-            total_text_height += line_spacing * (len(lines) - 1)
-            logger.info(f"Using line spacing of {line_spacing} pixels")
+        # Constant line advance — glyph content must never affect it
+        # (a line like "es" has a short glyph bbox)
+        if self.text_settings.line_height is not None:
+            # User-configured multiplier: advance = font_size * line-height
+            line_height = round(self.text_settings.font_size * self.text_settings.line_height)
+            line_spacing = 0
+            total_text_height = line_height * len(lines)
+            logger.info(f"Using configured line-height multiplier "
+                        f"{self.text_settings.line_height} -> {line_height}px per line")
+        else:
+            # Auto: font metrics plus 20% of font size as spacing
+            line_height = self._get_line_height(font)
+            line_spacing = int(self.text_settings.font_size * 0.2)
+            total_text_height = line_height * len(lines)
+            if len(lines) > 1:
+                total_text_height += line_spacing * (len(lines) - 1)
+                logger.info(f"Using line spacing of {line_spacing} pixels")
         
         # Calculate starting Y position based on vertical alignment
         text_y = self.text_settings.y
@@ -140,7 +152,7 @@ class TextProcessor:
             )
             
             # Move to next line position
-            current_y += line_heights[i] + line_spacing
+            current_y += line_height + line_spacing
         
         # Clear the current locale
         self.current_locale = None
@@ -192,37 +204,45 @@ class TextProcessor:
             
             return font
     
-    def _get_text_measurement_functions(self, draw, font):
+    def _get_line_height(self, font):
         """
-        Get functions for measuring text dimensions based on Pillow version.
-        
+        Get the constant line height (ascent + descent) used for layout.
+
+        Args:
+            font (PIL.ImageFont.ImageFont): Font object.
+
+        Returns:
+            int: Line height in pixels.
+        """
+        try:
+            ascent, descent = font.getmetrics()
+            return ascent + descent
+        except AttributeError:
+            # Bitmap default font has no metrics
+            return self.text_settings.font_size
+
+    def _get_text_width_function(self, draw, font):
+        """
+        Get a function for measuring text width based on Pillow version.
+
         Args:
             draw (PIL.ImageDraw.ImageDraw): Drawing context.
             font (PIL.ImageFont.ImageFont): Font object.
-            
+
         Returns:
-            tuple: (get_text_width_func, get_text_height_func)
+            callable: get_text_width(text) -> width in pixels
         """
         try:
             # For newer Pillow versions
             def get_text_width(text):
                 return draw.textlength(text, font=font)
-            
-            def get_text_height(text):
-                bbox = font.getbbox(text)
-                if bbox:
-                    return bbox[3] - bbox[1]  # bottom - top
-                else:
-                    return self.text_settings.font_size  # Fallback
+
         except AttributeError:
             # Fallback for older Pillow versions
             def get_text_width(text):
                 return font.getsize(text)[0]
-            
-            def get_text_height(text):
-                return font.getsize(text)[1]
-        
-        return get_text_width, get_text_height
+
+        return get_text_width
     
     def _wrap_text(self, text, font, get_text_width_func, max_width):
         """

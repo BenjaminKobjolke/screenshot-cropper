@@ -12,6 +12,7 @@ from src.models.settings import (
     CropSettings,
     ExportSettings,
     OverlaySettings,
+    ScreenshotMaskSettings,
     TextSettings,
 )
 
@@ -78,6 +79,37 @@ class ConfigHandler:
         except KeyError as e:
             logger.error(f"Missing required crop setting: {e}")
             return None
+
+    def get_screenshot_mask_settings(self) -> ScreenshotMaskSettings | None:
+        """Get screenshot mask settings from configuration.
+
+        Opaque mask pixels are subtracted from the cropped screenshot.
+
+        Returns:
+            Mask settings object, or None if not configured.
+        """
+        mask_data = self.config_data.get("screenshot_mask")
+        if not mask_data or "file" not in mask_data:
+            return None
+        return ScreenshotMaskSettings(file=mask_data["file"])
+
+    def get_final_crop_settings(self) -> CropSettings | None:
+        """Get final-image crop settings from configuration.
+
+        Applied to the finished composite as the last step.
+
+        Returns:
+            Crop settings object, or None if the 'final_crop' section is missing.
+        """
+        if "final_crop" not in self.config_data:
+            return None
+        data = self.config_data["final_crop"]
+        return CropSettings(
+            top=data.get("top", 0),
+            left=data.get("left", 0),
+            right=data.get("right", 0),
+            bottom=data.get("bottom", 0),
+        )
 
     def get_background_settings(self) -> BackgroundSettings | None:
         """Get background settings from configuration.
@@ -163,6 +195,9 @@ class ConfigHandler:
 
             text_data = self.config_data["text"]
 
+            # Text rendering can be switched off wholesale (default: on)
+            enabled = text_data.get("enabled", True)
+
             # Get font settings
             font_data = text_data.get("font", {})
 
@@ -176,6 +211,9 @@ class ConfigHandler:
             font_names = font_data.get("names", {})
 
             font_size = font_data.get("size", 24)
+
+            # Optional line-height multiplier (font_size * multiplier per line)
+            line_height = font_data.get("line-height")
 
             # Get alignment settings
             align = font_data.get("align", "left")
@@ -205,6 +243,8 @@ class ConfigHandler:
                 height=height,
                 color=color,
                 font_names=font_names,
+                line_height=line_height,
+                enabled=enabled,
             )
         except KeyError as e:
             logger.error(f"Missing required text setting: {e}")
