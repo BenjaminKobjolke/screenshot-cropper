@@ -1,0 +1,62 @@
+{
+    "crop": {
+        "top": 280,
+        "left": 0,
+        "right": 0,
+        "bottom": 150
+    },
+    "background": {
+        "file": "bg.png",
+        "position": {
+            "x": 322,
+            "y": 878
+        },
+        "size": {
+            "width": 897,
+            "height": 1685
+        }
+    },
+    "overlay": {
+        "file": "overlay.png",
+        "position": {
+            "x": 0,
+            "y": 0
+        }
+    },
+    "text": {
+        "font": {
+            "files": {
+                "default": "NotoSans-Bold.ttf",
+                "ar": "DroidSans-Bold_ar.ttf",
+                "bn": "NotoSansBengali-Bold.ttf",
+                "fa": "DroidSans-Bold_ar.ttf",
+                "he": "NotoSansHebrew-Bold.ttf",
+                "ja": "NotoSansJP-Bold.ttf",
+                "ko": "NotoSansKR-Bold.ttf",
+                "ml": "NotoSansMalayalam-Bold.ttf",
+                "ta": "NotoSansTamil-Bold.ttf",
+                "th": "NotoSansThai-Bold.ttf",
+                "ur": "NotoNastaliqUrdu-Bold.ttf",
+                "zh": "NotoSansSC-Bold.ttf"
+            },
+            "size": 100,
+            "align": "center",
+            "vertical-align": "middle",
+            "x": 0,
+            "y": 0,
+            "width": 1550,
+            "height": 650,
+            "color": {
+                "r": 255,
+                "g": 255,
+                "b": 255
+            }
+        }
+    },
+    "export": {
+        "format": "webp",
+        "quality": 90,
+        "lossless": false,
+        "keep_cropped": false
+    }
+}
