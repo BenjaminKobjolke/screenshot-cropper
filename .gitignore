@@ -27,6 +27,7 @@ var/
 
 # Virtual Environment
 venv/
+.venv/
 
 # IDE files
 .idea/
@@ -48,3 +49,8 @@ pstest4.py
 test_psd.py
 mediafileexplorer
 .claude
+20260722_old_summera
+20260722_old_run_mediafileexplorer.bat
+claude-plans
+venv
+tmp/commit_msg.tmp
