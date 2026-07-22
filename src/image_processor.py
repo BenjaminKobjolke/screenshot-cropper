@@ -6,7 +6,6 @@ import os
 import os.path
 
 from adobe_document_handler import PSDProcessor
-from PIL import Image
 
 from src.image_compositor import ImageCompositor
 from src.filename_utils import extract_screenshot_number

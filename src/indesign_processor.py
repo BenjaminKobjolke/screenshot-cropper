@@ -140,8 +140,6 @@ class InDesignProcessor:
             # Try to get RGB values if available
             if hasattr(color, "ColorValue"):
                 values = color.ColorValue
-                # Check color space
-                space = color.Space if hasattr(color, "Space") else None
 
                 # RGB color space (value 1919248498 or similar)
                 if len(values) >= 3:
